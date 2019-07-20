@@ -1,9 +1,6 @@
 package sample;
 
-import sun.misc.BASE64Encoder;
-
 import java.security.Key;
-import java.security.KeyPair;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
@@ -13,6 +10,11 @@ public class Block {
     private String date;
     private String previousHash;
     public long nonce;
+
+    public int getDifficultyLevel() {
+        return difficultyLevel;
+    }
+
     private int difficultyLevel;
     private String sender;
     private String receiver;
@@ -25,6 +27,7 @@ public class Block {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
         return sdf.format(new Date().getTime());
     }
+
 
     public Block(String m) {
         this.index = 0;
@@ -59,9 +62,12 @@ public class Block {
 
     public static void main(String[] args) {
         Encryption e = new Encryption();
-        e.generateRSAKey();
-        byte[] ciphertext = e.rsaEncrypt("hello world");
-        System.out.println("\n\n" + Base64.getEncoder().encodeToString(ciphertext));
-        System.out.println("\n\n" + e.rsaDecrypt(ciphertext));
+        Key k = e.generateAESKey();
+        byte[] b = e.aesEncrypt("hello", k);
+
+        byte[] s = e.generateSignature(b);
+        System.out.println(s);
+
+        System.out.println(e.verifySignature(b, s));
     }
 }

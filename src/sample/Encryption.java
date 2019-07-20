@@ -11,6 +11,34 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 public class Encryption {
+    public byte[] generateSignature(byte[] message) {
+        try {
+            Signature s = Signature.getInstance("SHA512withRSA");
+            SecureRandom sr = new SecureRandom();
+            s.initSign((PrivateKey)getRSAPrivate(), sr);
+
+            s.update(message);
+            return s.sign();
+        } catch(Exception e) {
+            System.out.println("SIGN ERORR: " + e);
+            return null;
+        }
+    }
+
+    public boolean verifySignature(byte[] message, byte[] signature) {
+        try {
+            Signature s = Signature.getInstance("SHA512withRSA");
+            s.initVerify((PublicKey)getRSAPublic());
+
+            s.update(message);
+            return s.verify(signature);
+
+        } catch(Exception e) {
+            System.out.println("VERIFY SIGN ERROR: " + e);
+            return false;
+        }
+    }
+
     public byte[] aesEncrypt(String message, Key key){
         try {
             Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -50,34 +78,9 @@ public class Encryption {
         }
     }
 
-    public void generateRSAKey() {
-        try {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-            keyGen.initialize(2048);
-            KeyPair pair = keyGen.generateKeyPair();
-            FileOutputStream fos = new FileOutputStream("publicKey");
-            fos.write(pair.getPublic().getEncoded());
-            fos.close();
-
-            fos = new FileOutputStream("privateKey");
-            fos.write(pair.getPrivate().getEncoded());
-            fos.close();
-        } catch(Exception e) {
-            System.out.println("GEN RSA KEY ERROR: " + e);
-        }
-    }
-
     public byte[] rsaEncrypt(String msg) {
         try{
-            File f = new File("publicKey");
-            FileInputStream fis = new FileInputStream(f);
-            DataInputStream dis = new DataInputStream(fis);
-            byte[] keyBytes = new byte[(int)f.length()];
-            dis.readFully(keyBytes);
-            dis.close();
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            Key pubkey = kf.generatePublic(spec);
+            Key pubkey = getRSAPublic();
 
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(cipher.ENCRYPT_MODE, pubkey);
@@ -90,21 +93,47 @@ public class Encryption {
 
     public String rsaDecrypt(byte[] ciphertext) {
         try{
-            File f = new File("privateKey");
-            FileInputStream fis = new FileInputStream(f);
-            DataInputStream dis = new DataInputStream(fis);
-            byte[] keyBytes = new byte[(int)f.length()];
-            dis.readFully(keyBytes);
-            dis.close();
-            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            Key privkey = kf.generatePrivate(spec);
+            Key privkey = getRSAPrivate();
 
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(cipher.DECRYPT_MODE, privkey);
             return new String(cipher.doFinal(ciphertext), "UTF-8");
         } catch(Exception e) {
             System.out.println("RSA DECRPT ERROR: " + e);
+            return null;
+        }
+    }
+
+    private Key getRSAPublic() {
+        try {
+            File f = new File("publicKey");
+            FileInputStream fis = new FileInputStream(f);
+            DataInputStream dis = new DataInputStream(fis);
+            byte[] keyBytes = new byte[(int)f.length()];
+            dis.readFully(keyBytes);
+            dis.close();
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return kf.generatePublic(spec);
+        } catch(Exception e) {
+            System.out.println("GET RSA PRIV ERROR: " + e);
+            return null;
+        }
+    }
+
+    private Key getRSAPrivate() {
+        try {
+            File f = new File("privateKey");
+            FileInputStream fis = new FileInputStream(f);
+            DataInputStream dis = new DataInputStream(fis);
+            byte[] keyBytes = new byte[(int) f.length()];
+            dis.readFully(keyBytes);
+            dis.close();
+            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return kf.generatePrivate(spec);
+        } catch(Exception e) {
+            System.out.println("GET RSA PUB ERROR: " + e);
             return null;
         }
     }

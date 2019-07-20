@@ -5,6 +5,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class Mining {
+    // TODO fetchMessages() - download array of messages that need to be mined into a block
+    // TODO generateBlock() - create block with messages that need mining
+    // TODO uploadBlock()   - distribute mined block
+
+
     public String hash(Block b) {
         String hashtext;
         try {
@@ -18,19 +23,27 @@ public class Mining {
             return hashtext;
         }
         catch(NoSuchAlgorithmException nsae) {
-            System.out.println("ERROR: " + nsae);
+            System.out.println("HASHING ERROR: " + nsae);
             return null;
         }
     }
 
     // getMessages() - fetch messages, oldest first
 
-    public void mineBlock(Block b, int dl) {
-        String target = new String(new char[dl]).replace('\0', '0');
+    public void mineBlock(Block b) {
+        int lvl = b.getDifficultyLevel();
+        String target = new String(new char[lvl]).replace('\0', '0');
         System.out.println("target: " + target);
-        while(!hash(b).substring(0,dl).equals(target)) {
+        while(!hash(b).substring(0,lvl).equals(target)) {
             System.out.println("n: " + b.nonce + "," + hash(b) + ",    len=" + hash(b).length());
             b.nonce++;
         }
+    }
+
+    public boolean verifyBlock(Block b) {
+        int lvl = b.getDifficultyLevel();
+        String target = new String(new char[lvl]).replace('\0', '0');
+        if(hash(b).substring(0,lvl).equals(target)) return true;
+        else return false;
     }
 }
