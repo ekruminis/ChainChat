@@ -61,13 +61,9 @@ public class Block {
     }
 
     public static void main(String[] args) {
-        Encryption e = new Encryption();
-        Key k = e.generateAESKey();
-        byte[] b = e.aesEncrypt("hello", k);
+        sample.Encryption e = new sample.Encryption();
+        sample.Network n = new sample.Network();
 
-        byte[] s = e.generateSignature(b);
-        System.out.println(s);
-
-        System.out.println(e.verifySignature(b, s));
+        System.out.println(n.ipfsUpload(new Block("ok")));
     }
 }

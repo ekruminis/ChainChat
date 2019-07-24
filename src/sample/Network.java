@@ -1,8 +1,16 @@
 package sample;
 
+import fr.rhaz.ipfs.IPFSDaemon;
+import io.ipfs.api.*;
+import io.ipfs.multiaddr.MultiAddress;
+import io.ipfs.multihash.Multihash;
+
+import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.util.List;
 
 public class Network {
     // TODO download() - download entire blockchain
@@ -26,6 +34,24 @@ public class Network {
             fos.close();
         } catch(Exception e) {
             System.out.println("GEN RSA KEY ERROR: " + e);
+        }
+    }
+
+    // IPFS -> https://github.com/ipfs/java-ipfs-http-client
+    //      -> https://ianopolous.github.io/java/IPFS
+    //
+    // Daemon -> https://github.com/hazae41/jvm-ipfs-daemon
+    public String ipfsUpload(sample.Block b) {
+        IPFS ipfs = new IPFS(new MultiAddress("/ip4/127.0.0.1/tcp/5001"));
+
+        try {
+            NamedStreamable ns = new NamedStreamable.ByteArrayWrapper(b.toString().getBytes());
+            List<MerkleNode> tree = ipfs.add(ns);
+            return tree.get(0).hash.toString();
+
+        } catch(Exception e) {
+            System.out.println("NETWORK ERROR: " + e);
+            return null;
         }
     }
 }
