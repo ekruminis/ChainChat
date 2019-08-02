@@ -6,6 +6,10 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+import javax.crypto.spec.SecretKeySpec;
+import java.security.Key;
+import java.util.Base64;
+
 public class Main extends Application {
 
     @Override
@@ -16,8 +20,24 @@ public class Main extends Application {
         primaryStage.show();
     }
 
+    public static void main(String[] args) throws InterruptedException {
+        //launch(args);
+        sample.Network n = new sample.Network();
+        sample.Messenger m = new sample.Messenger();
+        sample.Mining mine = new sample.Mining();
 
-    public static void main(String[] args) {
-        launch(args);
+        n.connect("192.168.1.11", 4001);
+        //m.sendMessage("Alice", "Bob", "this is message3", n);
+
+        for (; ; ) {
+            mine.fetchMessages(n.getMessagesFile());
+            Thread.sleep(2000);
+        }
+        // TODO something on shutdown? eg. delete messages.txt
+//        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+//            public void run() {
+//                // what you want to do
+//            }
+//        }));
     }
 }

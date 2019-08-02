@@ -1,16 +1,38 @@
 package sample;
 
+import java.io.*;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class Mining {
     // TODO fetchMessages() - download array of messages that need to be mined into a block
     // TODO generateBlock() - create block with messages that need mining
     // TODO uploadBlock()   - distribute mined block
 
+    public void fetchMessages(File f) {
+        try {
+            FileInputStream fis = new FileInputStream(f);
+            ObjectInputStream ois = new ObjectInputStream(fis);
+            HashMap<String, sample.message> m = new HashMap<String, sample.message>();
 
-    public String hash(Block b) {
+            Object obj = null;
+            while((obj = ois.readObject()) != null) {
+                sample.message msg = (sample.message)obj;
+                m.put(msg.getMessage(), msg);
+                ois = new ObjectInputStream(fis);
+            }
+            System.out.println(m.values());
+            fis.close();
+
+        } catch(Exception e) {
+            System.out.println("FETCHING ERORR: " + e);
+        }
+    }
+
+    public String hash(sample.Block b) {
         String hashtext;
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -30,7 +52,7 @@ public class Mining {
 
     // getMessages() - fetch messages, oldest first
 
-    public void mineBlock(Block b) {
+    public void mineBlock(sample.Block b) {
         int lvl = b.getDifficultyLevel();
         String target = new String(new char[lvl]).replace('\0', '0');
         System.out.println("target: " + target);
@@ -40,7 +62,7 @@ public class Mining {
         }
     }
 
-    public boolean verifyBlock(Block b) {
+    public boolean verifyBlock(sample.Block b) {
         int lvl = b.getDifficultyLevel();
         String target = new String(new char[lvl]).replace('\0', '0');
         if(hash(b).substring(0,lvl).equals(target)) return true;

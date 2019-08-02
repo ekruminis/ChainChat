@@ -1,9 +1,13 @@
 package sample;
 
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.security.Key;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Enumeration;
 
 public class Block {
     private int index;
@@ -58,12 +62,5 @@ public class Block {
                 ", sessionID='" + sessionID + '\'' +
                 ", signature='" + signature + '\'' +
                 '}';
-    }
-
-    public static void main(String[] args) {
-        sample.Encryption e = new sample.Encryption();
-        sample.Network n = new sample.Network();
-
-        System.out.println(n.ipfsUpload(new Block("ok")));
     }
 }
