@@ -1,34 +1,50 @@
 package sample;
 
+import org.codehaus.jackson.map.ObjectMapper;
+
 import java.io.*;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Mining {
     // TODO fetchMessages() - download array of messages that need to be mined into a block
     // TODO generateBlock() - create block with messages that need mining
     // TODO uploadBlock()   - distribute mined block
 
+    private int difficulty = 2;
+    
+    //private HashMap<String, sample.message> m = new HashMap<String, sample.message>();
+    private HashSet<sample.message> m = new HashSet<sample.message>();
+
     public void fetchMessages(File f) {
         try {
             FileInputStream fis = new FileInputStream(f);
             ObjectInputStream ois = new ObjectInputStream(fis);
-            HashMap<String, sample.message> m = new HashMap<String, sample.message>();
+
+//            Object obj = null;
+//            while((obj = ois.readObject()) != null) {
+//                sample.message msg = (sample.message)obj;
+//                m.put(msg.getMessage(), msg);
+//                ois = new ObjectInputStream(fis);
+//            }
 
             Object obj = null;
             while((obj = ois.readObject()) != null) {
                 sample.message msg = (sample.message)obj;
-                m.put(msg.getMessage(), msg);
+                if(!m.contains(msg)) m.add(msg);
                 ois = new ObjectInputStream(fis);
             }
-            System.out.println(m.values());
             fis.close();
 
+        } catch(EOFException eof) {
+
         } catch(Exception e) {
-            System.out.println("FETCHING ERORR: " + e);
+            System.out.println("FETCHING ERROR: " + e);
         }
     }
 
@@ -50,9 +66,13 @@ public class Mining {
         }
     }
 
-    // getMessages() - fetch messages, oldest first
+    public sample.Block createBlock() {
+        // TODO create block with contents and return it for mining
+        sample.Block block = new sample.Block(m,0, "genesis", difficulty);
+        return block;
+    }
 
-    public void mineBlock(sample.Block b) {
+    public sample.Block mineBlock(sample.Block b) {
         int lvl = b.getDifficultyLevel();
         String target = new String(new char[lvl]).replace('\0', '0');
         System.out.println("target: " + target);
@@ -60,6 +80,7 @@ public class Mining {
             System.out.println("n: " + b.nonce + "," + hash(b) + ",    len=" + hash(b).length());
             b.nonce++;
         }
+        return b;
     }
 
     public boolean verifyBlock(sample.Block b) {
@@ -69,3 +90,4 @@ public class Mining {
         else return false;
     }
 }
+

@@ -45,7 +45,6 @@ import java.util.Random;
 public class Network {
     // TODO download() - download entire blockchain
     // TODO getUsers() - download list of current users + their PubKeys
-    // TODO connect()  - connect to blockchain network
     // TODO register() - generate userID and RSA key, distribute details to others
     // TODO delete()   - delete RSA keys from user
 
@@ -147,6 +146,7 @@ public class Network {
         }
     }
 
+    // DHT Getting
     public String get(String name) {
         try {
             FutureGet futureGet = pdht.get(Number160.createHash(name)).start();
@@ -161,6 +161,7 @@ public class Network {
         }
     }
 
+    // DHT Storing
     public void store(String name, String ip) {
         try {
             pdht.put(Number160.createHash(name)).data(new Data(ip)).start().awaitUninterruptibly();
@@ -169,6 +170,7 @@ public class Network {
         }
     }
 
+    // Direct messaging to all peers
     public void msg(sample.message msg) {
         try{
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());

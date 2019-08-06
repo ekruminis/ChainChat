@@ -7,7 +7,6 @@ import java.util.Base64;
 import java.util.Date;
 
 public class Messenger {
-    // TODO sendMessage() - creates message with info and distributes to network
     // TODO readMessage() - checks blockchain and searches for blocks containing messages to user
     // TODO searchUser()  - search for user by specifying ID or PubKey
     // TODO addFriend()   - add user as a friend (local file?)
@@ -80,5 +79,14 @@ class message implements Serializable {
 
     public String getSignature() {
         return signature;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return !super.equals(obj);
+    }
+
+    public int hashCode() {
+        return getMessage().hashCode();
     }
 }
