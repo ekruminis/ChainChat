@@ -11,6 +11,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 public class Encryption {
+
+    /** Creates signature for message */
     public byte[] generateSignature(byte[] message) {
         try {
             Signature s = Signature.getInstance("SHA512withRSA");
@@ -25,6 +27,8 @@ public class Encryption {
         }
     }
 
+    /** Checks if signature is valid
+     * TODO should take in a senders public key */
     public boolean verifySignature(byte[] message, byte[] signature) {
         try {
             Signature s = Signature.getInstance("SHA512withRSA");
@@ -39,6 +43,7 @@ public class Encryption {
         }
     }
 
+    /** AES encryption of string message */
     public byte[] aesEncrypt(String message, Key key){
         try {
             Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -52,7 +57,7 @@ public class Encryption {
             return null;
         }
     }
-
+    /** AES decryption of ciphertext */
     public String aesDecrypt(byte[] ciphertext, Key key){
         try {
             Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -66,6 +71,7 @@ public class Encryption {
         }
     }
 
+    /** Randomly creates an AES key */
     public Key generateAESKey(){
         try {
             KeyGenerator generator = KeyGenerator.getInstance("AES");
@@ -78,6 +84,7 @@ public class Encryption {
         }
     }
 
+    /** RSA encryption of key */
     public byte[] rsaEncrypt(String msg) {
         try{
             Key pubkey = getRSAPublic();
@@ -91,6 +98,7 @@ public class Encryption {
         }
     }
 
+    /** RSA decryption of cipherkey */
     public String rsaDecrypt(byte[] ciphertext) {
         try{
             Key privkey = getRSAPrivate();
@@ -104,6 +112,7 @@ public class Encryption {
         }
     }
 
+    /** Returns users public key */
     private Key getRSAPublic() {
         try {
             File f = new File("publicKey");
@@ -121,6 +130,7 @@ public class Encryption {
         }
     }
 
+    /** Returns users private key */
     private Key getRSAPrivate() {
         try {
             File f = new File("privateKey");

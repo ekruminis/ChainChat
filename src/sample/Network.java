@@ -33,12 +33,15 @@ import net.tomp2p.relay.RelayClientConfig;
 import net.tomp2p.rpc.ObjectDataReply;
 import net.tomp2p.storage.Data;
 import net.tomp2p.tracker.PeerTracker;
+import org.apache.commons.lang3.SerializationUtils;
+import org.codehaus.jackson.map.ObjectMapper;
 import sun.nio.ch.Net;
 
 import java.io.*;
 import java.net.*;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 
@@ -48,6 +51,11 @@ public class Network {
     // TODO register() - generate userID and RSA key, distribute details to others
     // TODO delete()   - delete RSA keys from user
 
+    private PeerDHT pdht;
+    private File messagesFile;
+    private sample.Blockchain chain;
+
+    /** Creates RSA key pair for user */
     public void generateRSAKey() {
         // TODO warn about overriding? or just create with new name
         try {
@@ -70,6 +78,7 @@ public class Network {
     //      -> https://ianopolous.github.io/java/IPFS
     //
     // Daemon -> https://github.com/hazae41/jvm-ipfs-daemon
+    /** Uploads block into IPFS network */
     public String ipfsUpload(sample.Block b) {
         IPFS ipfs = new IPFS(new MultiAddress("/ip4/127.0.0.1/tcp/5001"));
 
@@ -84,19 +93,54 @@ public class Network {
         }
     }
 
-    private PeerDHT pdht;
+    /** Gets msg from P2P network's distributed hash table */
+    public String get(String name) {
+        try {
+            FutureGet futureGet = pdht.get(Number160.createHash(name)).start();
+            futureGet.awaitUninterruptibly();
+            if (futureGet.isSuccess()) {
+                return futureGet.dataMap().values().iterator().next().object().toString();
+            }
+            return "not found";
+        } catch(Exception e) {
+            System.out.println("GET ERROR: " + e);
+            return null;
+        }
+    }
 
+    /** Stores msg from P2P network's distributed hash table */
+    public void store(String name, String ip) {
+        try {
+            pdht.put(Number160.createHash(name)).data(new Data(ip)).start().awaitUninterruptibly();
+        } catch(Exception e) {
+            System.out.println("STORE ERROR:" + e);
+        }
+    }
+
+    /** JSON Encoding of object */
+    public String encode(Object o) {
+        try {
+            ObjectMapper om = new ObjectMapper();
+            return om.writeValueAsString(o);
+        } catch(Exception e) {
+            System.out.println("ENCODING ERR: " + e);
+            return null;
+        }
+    }
+
+    /** Returns temp messages file */
     public File getMessagesFile() {
         return messagesFile;
     }
 
-    private File messagesFile;
-
+    /** Joins the P2P network, creates temp file, and listens for messages saving them in file */
     public void connect(String adr, int port) {
         try {
             this.messagesFile = File.createTempFile("messages-", ".txt");
             System.out.println("filename: " + messagesFile.getName());
             messagesFile.deleteOnExit();
+
+            this.chain = new sample.Blockchain();
 
             Random rnd = new Random();
             Bindings b = new Bindings();
@@ -115,26 +159,89 @@ public class Network {
             FutureBootstrap futureBootstrap = peer.bootstrap().inetAddress(InetAddress.getByName(adr)).ports(4001).start();
             futureBootstrap.awaitUninterruptibly();
 
+            // ask peers for their chaintip
+            announce("rct");
+
             peer.objectDataReply(new ObjectDataReply() {
                 @Override
-                public Object reply(PeerAddress peerAddress, Object o) throws Exception {
-//                    System.err.println("I'm " + peer.peerID() + " and I just got the message [" + o
-//                            + "] from " + peerAddress.peerId());
+                public Object reply(PeerAddress pa, Object o) throws Exception {
 
-//                    try(FileWriter fw = new FileWriter(messagesFile, true);
-//                        BufferedWriter bw = new BufferedWriter(fw);
-//                        PrintWriter out = new PrintWriter(bw))
-//                    {
-//                        out.println(o.toString());
-//                        System.out.println("message received: " + o.toString());
-//                    } catch (IOException e) {
-//                        System.out.println("RCV MSG ERROR: " + e);
-//                    }
+                    // Message received
+                    if(o.getClass().getName().equals(sample.Message.class.getName())) {
+                        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(getMessagesFile(), true))) {
+                            oos.writeObject(o);
+                            System.out.println("MSG RECEIVED: " + o.toString());
+                        } catch (Exception e) {
+                            System.out.println("SAMPLE.MSG RCV ERROR: " + e);
+                        }
+                    }
 
-                    try(ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(getMessagesFile(), true))) {
-                        oos.writeObject(o);
-                    } catch(Exception e) {
-                        System.out.println("REPLY ERROR: " + e);
+                    // Mined block received
+                    else if(o.getClass().getName().equals(sample.Block.class.getName())) {
+                        try {
+                            // Verify block has been mined
+                            if(new sample.Mining().verifyBlock( (sample.Block) o )) {
+                                // Store block in LevelDB
+                                // TODO (more verification/validation on blocks eg. check signatures, check it reaches genesis)
+                                String h = new sample.Mining().hash((sample.Block)o);
+                                chain.storeBlock(h, (sample.Block) o);
+                            }
+                            else {
+                                System.out.println("Block received not valid");
+                            }
+                        } catch(Exception e) {
+                            System.out.println("SAMPLE.BLOCK RCV ERROR: " + e);
+                        }
+                    }
+
+                    else if(o.getClass().getName().equals(LinkedList.class.getName())) {
+                        try {
+                            // TODO (start validation+sync of chain headers)
+                        } catch(Exception e) {
+                            System.out.println("LINKED LIST RCV ERROR: " + e);
+                        }
+                    }
+
+                    else if(o.getClass().getName().equals(sample.indexBlock.class.getName())) {
+                        // TODO (add pa+res pair to memory, then call method to act on highest chaintip)
+                    }
+
+                    // String message received
+                    else if(o.getClass().getName().equals(String.class.getName())) {
+                        try{
+                            String msg = o.toString();
+                            // Request ChainTip msg received
+                            if(msg.equals("rct")) {
+                                // TODO (send own chaintip)
+                                sample.indexBlock ib = chain.getChainTip();
+                                announce(ib, pa);
+                            }
+
+                            // Chain Tip msg received
+                            else if(msg.startsWith("ct-")) {
+                                String res = msg.substring(3);
+                                // TODO (add pa+res pair to memory, then call method to act on highest chaintip)
+                            }
+
+                            // Request Block msg received
+                            else if(msg.startsWith("b-")) {
+                                String hash = msg.substring(2);
+                                byte[] res = chain.read(chain.getBlockDB(), hash.getBytes());
+                                sample.Block b = (sample.Block) SerializationUtils.deserialize(res);
+                                announce(b, pa);
+                            }
+                            // Request all Chain Headers msg received
+                            else if(msg.equals("rch")) {
+                                // TODO (send own chain headers to pa as a LinkedList<sample.indexBlock> -> get head then keep moving down from prevHash value )
+                            }
+
+                        } catch(Exception e) {
+                            System.out.println("STRING RCV ERROR: " + e);
+                        }
+                    }
+
+                    else{
+                        System.out.println("Unknown MSG received: " + o.toString());
                     }
 
                     return null;
@@ -146,32 +253,9 @@ public class Network {
         }
     }
 
-    // DHT Getting
-    public String get(String name) {
-        try {
-            FutureGet futureGet = pdht.get(Number160.createHash(name)).start();
-            futureGet.awaitUninterruptibly();
-            if (futureGet.isSuccess()) {
-                return futureGet.dataMap().values().iterator().next().object().toString();
-            }
-            return "not found";
-        } catch(Exception e) {
-            System.out.println("GET ERROR: " + e);
-            return null;
-        }
-    }
 
-    // DHT Storing
-    public void store(String name, String ip) {
-        try {
-            pdht.put(Number160.createHash(name)).data(new Data(ip)).start().awaitUninterruptibly();
-        } catch(Exception e) {
-            System.out.println("STORE ERROR:" + e);
-        }
-    }
-
-    // Direct messaging to all peers
-    public void msg(sample.message msg) {
+    /** Sends a message(text) directly to all peers it knows */
+    public void announce(sample.Message msg) {
         try{
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
             for(PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
@@ -181,6 +265,53 @@ public class Network {
 
         } catch(Exception e) {
             System.out.println("MSG ERROR: " + e);
+        }
+    }
+
+    /** Sends a mined block directly to all peers it knows */
+    public void announce(sample.Block b) {
+        try{
+            System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
+            for(PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
+                FutureDirect fd = pdht.peer().sendDirect(pa).object(b).start();
+                fd.awaitUninterruptibly();
+            }
+
+        } catch(Exception e) {
+            System.out.println("PUBLIC BLOCK ANNON ERROR: " + e);
+        }
+    }
+
+    /** Sends a mined block directly to a particular peer */
+    public void announce(sample.Block b, PeerAddress pa) {
+        try{
+            FutureDirect fd = pdht.peer().sendDirect(pa).object(b).start();
+            fd.awaitUninterruptibly();
+
+        } catch(Exception e) {
+            System.out.println("PARTICULAR BLOCK ANNON ERROR : " + e);
+        }
+    }
+
+    public void announce(sample.indexBlock ib, PeerAddress pa) {
+        try{
+            FutureDirect fd = pdht.peer().sendDirect(pa).object(ib).start();
+            fd.awaitUninterruptibly();
+        } catch(Exception e) {
+            System.out.println("PARTICULAR BLOCK ANNON ERROR : " + e);
+        }
+    }
+
+    /** Sends a String msg to all peers it knows */
+    public void announce(String s) {
+        try{
+            System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
+            for (PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
+                FutureDirect fd = pdht.peer().sendDirect(pa).object(s).start();
+                fd.awaitUninterruptibly();
+            }
+        } catch(Exception e) {
+            System.out.println("PUBLIC STRING ANNON ERROR: " + e);
         }
     }
 

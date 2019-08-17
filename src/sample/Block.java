@@ -1,43 +1,65 @@
 package sample;
 
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.security.Key;
 import java.text.SimpleDateFormat;
-import java.util.Base64;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.HashSet;
+import java.util.*;
 
-public class Block {
-    public int index;
+public class Block implements Serializable {
+    // TODO - Merkle Tree of transactions
+
+    public long index;
     public String date;
     public String previousHash;
     public long nonce;
-    public int difficultyLevel;
-    public HashSet<sample.message> messages;
+    public int difficultyLevel;             // Should be 'long'?
+    public String merkleRoot;
+    public long totalDifficulty;
+    private TreeSet<sample.Message> messages;
 
+    /** Returns the difficulty level of block */
     public int getDifficultyLevel() {
         return difficultyLevel;
     }
 
-    public HashSet<sample.message> getMessages() {
-        return messages;
-    }
-
-    public static String getDate() {
+    /** Returns current date */
+    public static String makeDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
         return sdf.format(new Date().getTime());
     }
 
-    public Block(HashSet<sample.message> set, int i, String ph, int dl) {
+    public String getDate() { return date; }
+
+    public long getIndex() {
+        return index;
+    }
+
+    public String getPreviousHash() {
+        return previousHash;
+    }
+
+    public long getNonce() {
+        return nonce;
+    }
+
+    public String getMerkleRoot() { return merkleRoot; }
+
+    public long getTotalDifficulty() {
+        return totalDifficulty;
+    }
+
+    /** Constructor */
+    public Block(String mr, long i, String ph, int dl, long tdl) {
         this.index = i;
-        this.date = getDate();
+        this.date = makeDate();
         this.previousHash = ph;
         this.nonce = 0;
         this.difficultyLevel = dl;
-        this.messages = set;
+        this.merkleRoot = mr;
+        this.totalDifficulty = tdl;
     }
 
     @Override
@@ -48,7 +70,16 @@ public class Block {
                 ", previousHash='" + previousHash + '\'' +
                 ", nonce=" + nonce +
                 ", difficultyLevel=" + difficultyLevel +
-                ", messages=" + messages +
+                ", merkleRoot='" + merkleRoot + '\'' +
+                ", totalDifficulty=" + totalDifficulty +
                 '}';
+    }
+
+    public void setMessages(TreeSet<sample.Message> mlist) {
+        this.messages = mlist;
+    }
+
+    public TreeSet<sample.Message> getMessages() {
+        return messages;
     }
 }
