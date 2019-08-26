@@ -54,6 +54,25 @@ public class Mining {
         }
     }
 
+    /** Hashes a block header and returns its hash as String */
+    public String hash(sample.indexBlock header) {
+        String hashtext;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = md.digest(header.toString().getBytes());
+            BigInteger numb = new BigInteger(1, bytes);
+            hashtext = numb.toString(16);
+            while (hashtext.length() < 64) {
+                hashtext = "0" + hashtext;
+            }
+            return hashtext;
+        }
+        catch(NoSuchAlgorithmException nsae) {
+            System.out.println("HASHING ERROR: " + nsae);
+            return null;
+        }
+    }
+
     /** Hashes a String and returns its hash as String */
     public String hash(String s) {
         String hashtext;
@@ -74,19 +93,27 @@ public class Mining {
     }
 
     /** Creates a block with the current messages from file */
-    // TODO fix inputs
-    public sample.Block createBlock() {
+    // TODO fix "difficulty" input
+    public sample.Block createBlock(sample.Blockchain chain) {
+        System.out.println("generating merkle root");
         String mr = genMerkleRoot(m);
+        System.out.println("merkle gened: " + mr);
 
-        sample.Block block = new sample.Block(mr,0, "genesis", difficulty, 1);
+        System.out.println("creating block");
+        sample.Block block = new sample.Block(mr, chain.getCurrentIndex()+1, chain.getCurrentHash(), difficulty, chain.getCurrentDifficultyTotal()+difficulty);
+        System.out.println("block created: " + block.toString());
         block.setMessages(m);
+        System.out.println("block messages set");
 
         return block;
     }
 
     /** Mines the block until the difficulty level is satisfied, then returns the block */
     public sample.Block mineBlock(sample.Block b) {
+
+        // TODO (recalculate no. of 0's hash should start from difficulty level)
         int lvl = b.getDifficultyLevel();
+
         String target = new String(new char[lvl]).replace('\0', '0');
         System.out.println("target: " + target);
         while(!hash(b).substring(0,lvl).equals(target)) {
@@ -96,18 +123,34 @@ public class Mining {
         return b;
     }
 
-    /** Checks if the block has been successfully mined */
-    public boolean verifyBlock(sample.Block b) {
+    /** Checks if the block has been successfully mined*/
+    public boolean verifyMined(sample.Block b) {
         int lvl = b.getDifficultyLevel();
         String target = new String(new char[lvl]).replace('\0', '0');
         if(hash(b).substring(0,lvl).equals(target)) return true;
         else return false;
     }
 
-    public LinkedList<String> genParentHash(LinkedList<String> children) {
-        String left = "";
-        String right = "";
+    /** Checks if the block header has been successfully mined -> creates Block object from header data */
+    public boolean verifyMined(sample.indexBlock header) {
 
+        sample.Block b = new sample.Block(header.getIndex(), header.getDate(), header.getPrevHash(), header.getNonce(), header.getDifficultyLevel(), header.getMerkleRoot(), header.getTotalDifficulty());
+
+        System.out.println("checking if mined..");
+        System.out.println("header is: " + header.toString());
+        System.out.println("\nblock is: " + b.toString());
+
+        int lvl = b.getDifficultyLevel();
+        System.out.println("level is: " + lvl);
+        String target = new String(new char[lvl]).replace('\0', '0');
+        System.out.println("target is: " + target);
+        System.out.println("the header hash is: " + hash(b) );
+        if(hash(b).substring(0,lvl).equals(target)) return true;
+        else return false;
+    }
+
+    /** Hashes the Merkle tree children to make parents */
+    private LinkedList<String> genParentHash(LinkedList<String> children) {
         LinkedList<String> parents = new LinkedList<>();
 
         if( (children.size() != 1) && (children.size() % 2 != 0) ) {
@@ -115,8 +158,8 @@ public class Mining {
         }
 
        for(int x = 0; x < children.size(); x=x+2) {
-           left = children.get(x);
-           right = children.get(x+1);
+           String left = children.get(x);
+           String right = children.get(x+1);
 
            parents.add(hash(left+right));
        }
@@ -124,8 +167,10 @@ public class Mining {
         return parents;
     }
 
+    /** Generates MerkleRoot of all messages */
     public String genMerkleRoot(TreeSet<sample.Message> mlist) {
         LinkedList<String> hashes = new LinkedList<>();
+
         if(mlist.size() % 2 != 0) {
             mlist.add(mlist.last());
         }
@@ -140,5 +185,7 @@ public class Mining {
 
         return hashes.get(0);
     }
+
+    // TODO MerkleTree verification
 }
 

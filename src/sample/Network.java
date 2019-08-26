@@ -41,9 +41,7 @@ import java.io.*;
 import java.net.*;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class Network {
     // TODO download() - download entire blockchain
@@ -54,6 +52,8 @@ public class Network {
     private PeerDHT pdht;
     private File messagesFile;
     private sample.Blockchain chain;
+    private LinkedList<sample.chainTip> chainTips = new LinkedList<>();
+    private boolean start = true;
 
     /** Creates RSA key pair for user */
     public void generateRSAKey() {
@@ -159,8 +159,11 @@ public class Network {
             FutureBootstrap futureBootstrap = peer.bootstrap().inetAddress(InetAddress.getByName(adr)).ports(4001).start();
             futureBootstrap.awaitUninterruptibly();
 
+            generateRSAKey();
+
             // ask peers for their chaintip
             announce("rct");
+            System.out.println("'rct' -> asking peers for their chaintip");
 
             peer.objectDataReply(new ObjectDataReply() {
                 @Override
@@ -179,48 +182,112 @@ public class Network {
                     // Mined block received
                     else if(o.getClass().getName().equals(sample.Block.class.getName())) {
                         try {
-                            // Verify block has been mined
-                            if(new sample.Mining().verifyBlock( (sample.Block) o )) {
-                                // Store block in LevelDB
-                                // TODO (more verification/validation on blocks eg. check signatures, check it reaches genesis)
-                                String h = new sample.Mining().hash((sample.Block)o);
-                                chain.storeBlock(h, (sample.Block) o);
+                            System.out.println("\n\nBlock received, checking its validity");
+                            // Verify block has been mined successfully ie. hash starts with correct no. of 0's
+                            if(new sample.Mining().verifyMined( (sample.Block) o ) ) {
+                                System.out.println("block received is mined..");
+                                if(chain.validateDifficulty( (sample.Block) o )) {
+                                    System.out.println("block received is in correct difficulty..");
+                                    if (chain.validateInChain((sample.Block) o)) {
+                                        System.out.println("block is linked, so we add it");
+                                        // Store block in LevelDB
+                                        // TODO (more verification/validation on blocks eg. check signatures? )
+                                        String h = new sample.Mining().hash((sample.Block) o);
+                                        chain.storeBlock(h, (sample.Block) o);
+                                        chain.checkUnofficial(pa);
+                                    }
+                                    // Block not in chain, so we ask peer for prevBlock
+                                    else {
+                                        System.out.println("block received is not in chain..");
+                                        chain.addUnofficial((sample.Block) o, pa);
+                                        System.out.println("asking peer for block: " + ((sample.Block) o).getPreviousHash() );
+                                        announce(("b-" + ((sample.Block) o).getPreviousHash()), pa);
+                                    }
+                                }
+                                else {
+                                    System.out.println("Block received not correct difficulty");
+                                }
                             }
                             else {
-                                System.out.println("Block received not valid");
+                                System.out.println("Block received not mined");
                             }
                         } catch(Exception e) {
                             System.out.println("SAMPLE.BLOCK RCV ERROR: " + e);
                         }
                     }
 
+                    // LinkedList received
                     else if(o.getClass().getName().equals(LinkedList.class.getName())) {
                         try {
-                            // TODO (start validation+sync of chain headers)
+                            Object test = ((LinkedList) o).getFirst();
+
+                            // Check if we received list of chain headers
+                            if(test instanceof sample.indexBlock) {
+                                System.out.println("Chain headers received from " + pa);
+                                System.out.println("\n\nheaders: " + (LinkedList<sample.indexBlock>)o);
+
+                                if (chain.validateHeaders((LinkedList<sample.indexBlock>) o)) {
+                                    System.out.println("headers validated");
+                                    System.out.println("\nBlocks to request: " + chain.getRequest() );
+                                    announce(chain.getRequest(), pa);
+                                } else {
+                                    System.out.println("evaluating chaintips agane..");
+                                    evaluateTips();
+                                }
+                            }
+
+                            // Check if we received a list of blocks
+                            else if(test instanceof sample.Block) {
+                                System.out.println("Chain of blocks received from " + pa);
+                                boolean success = chain.syncBlocks( (LinkedList<sample.Block>) o );
+
+                                // if some blocks are missing, request them again
+                                if(!success) {
+                                    System.out.println("LinkedList -> not all blockchain blocks received");
+                                    announce(chain.getRequest(), pa);
+                                }
+                            }
+
                         } catch(Exception e) {
                             System.out.println("LINKED LIST RCV ERROR: " + e);
                         }
                     }
 
+                    // List of blocks requested by peer received
+                    else if(o.getClass().getName().equals(ArrayList.class.getName())) {
+                        System.out.println("\npeer " + pa + " ; requested my blockchain");
+                        LinkedList<sample.Block> blockchain = chain.getRequestedBlocks( (ArrayList<String>)o );
+
+                        System.out.println("\n\nMy blockchain is: " + blockchain);
+                        System.out.println("sending my blockchain linkedlist..");
+                        announce(blockchain, pa);
+                    }
+
+                    // ChainTip received -> add tips, start countdown (wait 10sec for replies, then start evaluating them)
                     else if(o.getClass().getName().equals(sample.indexBlock.class.getName())) {
-                        // TODO (add pa+res pair to memory, then call method to act on highest chaintip)
+                        System.out.println("chaintip received from " + pa + "\nheader: " + o);
+                        sample.chainTip ct = new sample.chainTip( (sample.indexBlock)o, pa);
+                        chainTips.add(ct);
+
+                        System.out.println("chainTips: " + chainTips);
+                        if(start) {
+                            System.out.println("Chaintip countdown started..");
+                        }
+                        startCount(start);
+                        start = false;
+
                     }
 
                     // String message received
                     else if(o.getClass().getName().equals(String.class.getName())) {
                         try{
                             String msg = o.toString();
+                            System.out.println("message " + msg + " received from " + pa);
+
                             // Request ChainTip msg received
                             if(msg.equals("rct")) {
-                                // TODO (send own chaintip)
                                 sample.indexBlock ib = chain.getChainTip();
                                 announce(ib, pa);
-                            }
-
-                            // Chain Tip msg received
-                            else if(msg.startsWith("ct-")) {
-                                String res = msg.substring(3);
-                                // TODO (add pa+res pair to memory, then call method to act on highest chaintip)
                             }
 
                             // Request Block msg received
@@ -230,9 +297,12 @@ public class Network {
                                 sample.Block b = (sample.Block) SerializationUtils.deserialize(res);
                                 announce(b, pa);
                             }
+
                             // Request all Chain Headers msg received
-                            else if(msg.equals("rch")) {
-                                // TODO (send own chain headers to pa as a LinkedList<sample.indexBlock> -> get head then keep moving down from prevHash value )
+                            else if(msg.startsWith("rch-")) {
+                                String hash = msg.substring(4);
+                                LinkedList<sample.indexBlock> toSend = chain.getHeaders(hash);
+                                announce(toSend, pa);
                             }
 
                         } catch(Exception e) {
@@ -253,6 +323,48 @@ public class Network {
         }
     }
 
+    /** Wait for 4sec, then start evaluating chain tips */
+    private void startCount(boolean start) {
+        if(start == true) {
+            final Timer t = new java.util.Timer();
+            t.schedule(
+                    new java.util.TimerTask() {
+                        @Override
+                        public void run() {
+                            evaluateTips();
+                            t.cancel();
+                        }
+                    },
+                    4000
+            );
+        }
+    }
+    /** Evaluates potential chaintips to find the one with the highest difficulty and then contacts the peer to get full header chain */
+    public void evaluateTips() {
+        System.out.println("started evaluating tips");
+        sample.chainTip currentCT = null;
+
+        System.out.println("all tips: " + chainTips);
+
+        for (sample.chainTip ct : chainTips) {
+            if( currentCT == null || (currentCT.getIb().getTotalDifficulty() < ct.getIb().getTotalDifficulty()) ) {
+                currentCT = ct;
+            }
+        }
+        System.out.println("finished and current highest tip: " + currentCT.toString());
+        chainTips.remove(currentCT);
+        System.out.println("removed from chainTips linked-list");
+
+        PeerAddress peer = currentCT.getPa();
+        String hash = chain.getConfirmed();
+
+        System.out.println("data gathered");
+
+        announce(("rch-"+hash), peer);
+        System.out.println("rch-"+hash+", sent to " + peer);
+        // if no/incorrect response, start evaluation again..
+    }
+
 
     /** Sends a message(text) directly to all peers it knows */
     public void announce(sample.Message msg) {
@@ -260,7 +372,17 @@ public class Network {
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
             for(PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
                 FutureDirect fd = pdht.peer().sendDirect(pa).object(msg).start();
-                fd.awaitUninterruptibly();
+                //fd.awaitUninterruptibly();
+                fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                    @Override
+                    public void operationComplete(FutureDirect future) throws Exception {
+                        if(future.isSuccess()) { // this flag indicates if the future was successful
+                            System.out.println("sample.Message sent successfully");
+                        } else {
+                            System.out.println("sample.Message sent fail");
+                        }
+                    }
+                });
             }
 
         } catch(Exception e) {
@@ -274,7 +396,17 @@ public class Network {
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
             for(PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
                 FutureDirect fd = pdht.peer().sendDirect(pa).object(b).start();
-                fd.awaitUninterruptibly();
+                //fd.awaitUninterruptibly();
+                fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                    @Override
+                    public void operationComplete(FutureDirect future) throws Exception {
+                        if(future.isSuccess()) { // this flag indicates if the future was successful
+                            System.out.println("sample.Block (mined) sent successfully");
+                        } else {
+                            System.out.println("sample.Block (mined) sent fail");
+                        }
+                    }
+                });
             }
 
         } catch(Exception e) {
@@ -286,19 +418,79 @@ public class Network {
     public void announce(sample.Block b, PeerAddress pa) {
         try{
             FutureDirect fd = pdht.peer().sendDirect(pa).object(b).start();
-            fd.awaitUninterruptibly();
-
+            //fd.awaitUninterruptibly();
+            fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                @Override
+                public void operationComplete(FutureDirect future) throws Exception {
+                    if(future.isSuccess()) { // this flag indicates if the future was successful
+                        System.out.println("mined block to particular peer sent successfully");
+                    } else {
+                        System.out.println("mined block to particular sent fail");
+                    }
+                }
+            });
         } catch(Exception e) {
             System.out.println("PARTICULAR BLOCK ANNON ERROR : " + e);
         }
     }
 
+    /** Sends a block header to a particular peer */
     public void announce(sample.indexBlock ib, PeerAddress pa) {
         try{
             FutureDirect fd = pdht.peer().sendDirect(pa).object(ib).start();
-            fd.awaitUninterruptibly();
+            //fd.awaitUninterruptibly();
+            fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                @Override
+                public void operationComplete(FutureDirect future) throws Exception {
+                    if(future.isSuccess()) { // this flag indicates if the future was successful
+                        System.out.println("chaintip to particular peer sent successfully");
+                    } else {
+                        System.out.println("chaintip to particular peer sent fail");
+                    }
+                }
+            });
         } catch(Exception e) {
-            System.out.println("PARTICULAR BLOCK ANNON ERROR : " + e);
+            System.out.println("PARTICULAR INDEX BLOCK ANNON ERROR : " + e);
+        }
+    }
+
+    /** Sends a LinkedList of block headers to a particular peer */
+    public void announce(LinkedList lib, PeerAddress pa) {
+        try{
+            FutureDirect fd = pdht.peer().sendDirect(pa).object(lib).start();
+            //fd.awaitUninterruptibly();
+            fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                @Override
+                public void operationComplete(FutureDirect future) throws Exception {
+                    if(future.isSuccess()) { // this flag indicates if the future was successful
+                        System.out.println("linkedlist to particular peer sent successfully");
+                    } else {
+                        System.out.println("linkedlist to particular peer sent fail");
+                    }
+                }
+            });
+        } catch(Exception e) {
+            System.out.println("PARTICULAR LINKEDLIST ANNON ERROR : " + e);
+        }
+    }
+
+    /** Sends a LinkedList of block hashes to a particular peer */
+    public void announce(ArrayList lib, PeerAddress pa) {
+        try{
+            FutureDirect fd = pdht.peer().sendDirect(pa).object(lib).start();
+            //fd.awaitUninterruptibly();
+            fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                @Override
+                public void operationComplete(FutureDirect future) throws Exception {
+                    if(future.isSuccess()) { // this flag indicates if the future was successful
+                        System.out.println("arraylist to particular peer sent successfully");
+                    } else {
+                        System.out.println("arraylist to particular peer sent fail");
+                    }
+                }
+            });
+        } catch(Exception e) {
+            System.out.println("PARTICULAR ARRAYLIST ANNON ERROR : " + e);
         }
     }
 
@@ -308,11 +500,70 @@ public class Network {
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
             for (PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
                 FutureDirect fd = pdht.peer().sendDirect(pa).object(s).start();
-                fd.awaitUninterruptibly();
+                //fd.awaitUninterruptibly();
+                fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                    @Override
+                    public void operationComplete(FutureDirect future) throws Exception {
+                        if(future.isSuccess()) { // this flag indicates if the future was successful
+                            System.out.println("string sent successfully");
+                        } else {
+                            System.out.println("string sent fail");
+                        }
+                    }
+                });
             }
         } catch(Exception e) {
             System.out.println("PUBLIC STRING ANNON ERROR: " + e);
         }
     }
 
+    /** Sends a String msg to a particular peer */
+    public void announce(String s, PeerAddress pa) {
+        try{
+            FutureDirect fd = pdht.peer().sendDirect(pa).object(s).start();
+            //fd.awaitUninterruptibly();
+            fd.addListener(new BaseFutureAdapter<FutureDirect>() {
+                @Override
+                public void operationComplete(FutureDirect future) throws Exception {
+                    if(future.isSuccess()) { // this flag indicates if the future was successful
+                        System.out.println("string to particular peer sent successfully");
+                    } else {
+                        System.out.println("string to particular peer sent fail");
+                    }
+                }
+            });
+        } catch(Exception e) {
+            System.out.println("PARTICULAR STRING ANNON ERROR: " + e);
+        }
+    }
+
+    public sample.Blockchain getChain() {
+        return chain;
+    }
+}
+
+class chainTip {
+    private final sample.indexBlock ib;
+    private final PeerAddress pa;
+
+    public chainTip(sample.indexBlock block, PeerAddress peer) {
+        this.ib = block;
+        this.pa = peer;
+    }
+
+    public sample.indexBlock getIb() {
+        return ib;
+    }
+
+    public PeerAddress getPa() {
+        return pa;
+    }
+
+    @Override
+    public String toString() {
+        return "chainTip{" +
+                "ib=" + ib +
+                ", pa=" + pa +
+                '}';
+    }
 }

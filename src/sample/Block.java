@@ -9,8 +9,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class Block implements Serializable {
-    // TODO - Merkle Tree of transactions
-
     public long index;
     public String date;
     public String previousHash;
@@ -57,6 +55,17 @@ public class Block implements Serializable {
         this.date = makeDate();
         this.previousHash = ph;
         this.nonce = 0;
+        this.difficultyLevel = dl;
+        this.merkleRoot = mr;
+        this.totalDifficulty = tdl;
+    }
+
+    /** Constructor */
+    public Block(long i, String d, String ph, long n, int dl, String mr, long tdl) {
+        this.index = i;
+        this.date = d;
+        this.previousHash = ph;
+        this.nonce = n;
         this.difficultyLevel = dl;
         this.merkleRoot = mr;
         this.totalDifficulty = tdl;

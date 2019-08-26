@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import java.security.*;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 
 public class Encryption {
 
@@ -28,11 +29,26 @@ public class Encryption {
     }
 
     /** Checks if signature is valid
-     * TODO should take in a senders public key */
-    public boolean verifySignature(byte[] message, byte[] signature) {
+     *
+     * eg.     sample.Encryption e = new sample.Encryption();
+     *         String pk = Base64.getEncoder().encodeToString(e.getRSAPublic().getEncoded());
+     *         System.out.println(pk);
+     *
+     *         byte[] signature = e.generateSignature("hello".getBytes());
+     *         System.out.println("\n\n" + Base64.getEncoder().encodeToString(signature));
+     *         boolean ans = e.verifySignature("hello".getBytes(), signature, pk);
+     *         System.out.println("\n\nvalid: " + ans);
+     *
+     *         */
+    public boolean verifySignature(byte[] message, byte[] signature, String pubKey) {
         try {
+
+            byte[] publicBytes = Base64.getDecoder().decode(pubKey);
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicBytes);
+            PublicKey pk = KeyFactory.getInstance("RSA").generatePublic(keySpec);
+
             Signature s = Signature.getInstance("SHA512withRSA");
-            s.initVerify((PublicKey)getRSAPublic());
+            s.initVerify(pk);
 
             s.update(message);
             return s.verify(signature);
@@ -113,7 +129,7 @@ public class Encryption {
     }
 
     /** Returns users public key */
-    private Key getRSAPublic() {
+    public Key getRSAPublic() {
         try {
             File f = new File("publicKey");
             FileInputStream fis = new FileInputStream(f);
