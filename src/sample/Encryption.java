@@ -101,9 +101,12 @@ public class Encryption {
     }
 
     /** RSA encryption of key */
-    public byte[] rsaEncrypt(String msg) {
+    public byte[] rsaEncrypt(String key, String msg) {
         try{
-            Key pubkey = getRSAPublic();
+            byte[] keyBytes = Base64.getDecoder().decode(key.getBytes());
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            Key pubkey = keyFactory.generatePublic(spec);
 
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(cipher.ENCRYPT_MODE, pubkey);

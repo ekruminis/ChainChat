@@ -13,13 +13,13 @@ public class Block implements Serializable {
     public String date;
     public String previousHash;
     public long nonce;
-    public int difficultyLevel;             // Should be 'long'?
+    public long difficultyLevel;
     public String merkleRoot;
     public long totalDifficulty;
     private TreeSet<sample.Message> messages;
 
     /** Returns the difficulty level of block */
-    public int getDifficultyLevel() {
+    public long getDifficultyLevel() {
         return difficultyLevel;
     }
 
@@ -50,7 +50,7 @@ public class Block implements Serializable {
     }
 
     /** Constructor */
-    public Block(String mr, long i, String ph, int dl, long tdl) {
+    public Block(String mr, long i, String ph, long dl, long tdl) {
         this.index = i;
         this.date = makeDate();
         this.previousHash = ph;
@@ -61,7 +61,7 @@ public class Block implements Serializable {
     }
 
     /** Constructor */
-    public Block(long i, String d, String ph, long n, int dl, String mr, long tdl) {
+    public Block(long i, String d, String ph, long n, long dl, String mr, long tdl) {
         this.index = i;
         this.date = d;
         this.previousHash = ph;

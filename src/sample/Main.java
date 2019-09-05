@@ -1,10 +1,13 @@
 package sample;
 
 import javafx.application.Application;
+import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.iq80.leveldb.DB;
@@ -27,93 +30,64 @@ import static org.iq80.leveldb.impl.Filename.FileType.LOG;
 import static org.iq80.leveldb.impl.Iq80DBFactory.*;
 
 // extends Application
-public class Main {
+public class Main extends Application {
 
-//    @Override
-//    public void start(Stage primaryStage) throws Exception{
-//        Parent root = FXMLLoader.load(getClass().getResource("sample.fxml"));
-//        primaryStage.setTitle("ChainChat");
-//        primaryStage.setScene(new Scene(root, 300, 275));
-//        primaryStage.show();
-//    }
+    static sample.Controller mainController;
+
+    static sample.Network network = new sample.Network();
+    static sample.Messenger messenger = new sample.Messenger();
+    static sample.Mining mining = new sample.Mining();
+    static sample.Encryption encryption = new sample.Encryption();
+
+    @Override
+    public void start(Stage primaryStage) throws Exception{
+        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("/sample.fxml"));
+        Parent root = fxmlLoader.load();
+        mainController = (sample.Controller)fxmlLoader.getController();
+
+        primaryStage.setTitle("ChainChat");
+        primaryStage.setScene(new Scene(root, 1024, 721));
+        //primaryStage.setResizable(false);
+        primaryStage.setMinWidth(1063);
+        primaryStage.setMinHeight(760);
+        primaryStage.show();
+        primaryStage.setOnCloseRequest(new EventHandler<WindowEvent>() {
+            @Override
+            public void handle(WindowEvent event) {
+                System.exit(0);
+            }
+        });
+    }
 
     public static void main(String[] args) throws InterruptedException, IOException, ParseException {
-        //launch(args);
-        sample.Network n = new sample.Network();
-        sample.Messenger m = new sample.Messenger();
-        sample.Mining mine = new sample.Mining();
-        sample.Encryption e = new sample.Encryption();
+        // TODO something on shutdown? eg. delete messages.txt
+        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+            public void run() {
+                System.out.println("updating chaintip data..");
+                if(network.getChain().getChainTip() != null) {
+                    network.getChain().add(network.getChain().getIndexDB(), "chaintip".getBytes(), SerializationUtils.serialize(network.getChain().getChainTip()));
+                    System.out.println("chaintip data updated..");
+                }
+            }
+        }));
 
-        int port = Integer.parseInt(args[0]);
+//        long count  = 0;
+//        for(int x = 0; x < 1; x++) {
+//            sample.Block b = new sample.Block(1, sample.Block.makeDate(), "oldHash", 0, 300, "merkle", 10);
+//            sample.Block b2 = mining.mineBlock(b);
+//            System.out.println("finished with nonce: " + b2.getNonce());
+//            count = count + b2.getNonce();
+//        }
+//
+//        System.out.println("average: " + count);
 
-        sample.Blockchain bc = new sample.Blockchain();
-        factory.destroy(new File("blocks0"), new Options());
-        factory.destroy(new File("chain"), new Options());
-        factory.destroy(new File("index"), new Options());
+        //System.exit(0);
+        launch(args);
 
-        Scanner reader = new Scanner(System.in);
-                    while (true) {
-                        if (reader.next().equals("connect")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - connect");
-                                n.connect("192.168.1.15", port);
-                            }).start();
-                        }
-
-                        if (reader.next().equals("msg")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - msg");
-                                m.sendMessage("Alice", "Bob", "hello", n);
-                                System.out.println("msg finished");
-                            }).start();
-                        }
-
-                        if (reader.next().equals("mine")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - mine");
-                                mine.fetchMessages(n.getMessagesFile());
-                                sample.Block block = mine.createBlock(n.getChain());
-                                sample.Block minedBlock = mine.mineBlock(block);
-                                n.getChain().storeBlock(mine.hash(minedBlock), minedBlock);
-                                n.announce(minedBlock);
-                            }).start();
-                        }
-
-                        if (reader.next().equals("showall1")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - showall");
-                                n.getChain().getAll();
-                                System.out.println("showall finished");
-                            }).start();
-                        }
-
-                        if (reader.next().equals("msg2")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - msg");
-                                m.sendMessage("sender", "receiver", "hello again", n);
-                                System.out.println("msg finished");
-                            }).start();
-                        }
-
-                        if (reader.next().equals("mine2")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - mine");
-                                mine.fetchMessages(n.getMessagesFile());
-                                sample.Block block = mine.createBlock(n.getChain());
-                                sample.Block minedBlock = mine.mineBlock(block);
-                                n.getChain().storeBlock(mine.hash(minedBlock), minedBlock);
-                                n.announce(minedBlock);
-                            }).start();
-                        }
-
-                        if (reader.next().equals("showall2")) {
-                            new Thread(() -> {
-                                System.out.println("cmd - showall");
-                                n.getChain().getAll();
-                                System.out.println("showall finished");
-                            }).start();
-                        }
-                    }
+//        factory.destroy(new File("blocks0"), new Options());
+//        factory.destroy(new File("chain"), new Options());
+//        factory.destroy(new File("index"), new Options());
+//        System.out.println("finished destroying");
 
         //m.sendMessage("Alice", "Bob", "hello", n);
 
@@ -130,12 +104,5 @@ public class Main {
 //            mine.fetchMessages(n.getMessagesFile());
 //            Thread.sleep(2000);
 //        }
-
-        // TODO something on shutdown? eg. delete messages.txt
-//        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-//            public void run() {
-//                // what you want to do
-//            }
-//        }));
     }
 }

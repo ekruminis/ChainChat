@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.*?>
+<?import javafx.scene.text.*?>
+
+<HBox alignment="CENTER" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.MessagesController">
+   <children>
+      <VBox prefWidth="200.0">
+         <children>
+            <HBox alignment="CENTER">
+               <children>
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Active Conversations" />
+                  <Button fx:id="startNewConversationButton" alignment="CENTER" contentDisplay="CENTER" ellipsisString="+" graphicTextGap="0.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" mnemonicParsing="false" prefHeight="50.0" prefWidth="50.0" text="+" textAlignment="CENTER" HBox.hgrow="ALWAYS">
+                     <HBox.margin>
+                        <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+                     </HBox.margin>
+                     <font>
+                        <Font size="24.0" />
+                     </font>
+                  </Button>
+               </children>
+               <padding>
+                  <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+               </padding>
+               <VBox.margin>
+                  <Insets />
+               </VBox.margin>
+            </HBox>
+            <ScrollPane VBox.vgrow="ALWAYS">
+               <content>
+                  <VBox fx:id="conversationList" />
+               </content>
+            </ScrollPane>
+         </children>
+      </VBox>
+      <BorderPane HBox.hgrow="ALWAYS">
+         <bottom>
+            <HBox BorderPane.alignment="CENTER">
+               <children>
+                  <TextField fx:id="msgField" HBox.hgrow="ALWAYS">
+                     <HBox.margin>
+                        <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
+                     </HBox.margin>
+                  </TextField>
+                  <Button fx:id="sendButton" alignment="CENTER_RIGHT" mnemonicParsing="false" text="Send">
+                     <HBox.margin>
+                        <Insets bottom="6.0" left="6.0" right="6.0" top="6.0" />
+                     </HBox.margin>
+                  </Button>
+               </children>
+            </HBox>
+         </bottom>
+         <center>
+            <ScrollPane fitToWidth="true" BorderPane.alignment="CENTER">
+               <content>
+                  <VBox fx:id="chatBox">
+                     <padding>
+                        <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+                     </padding>
+                  </VBox>
+               </content>
+            </ScrollPane>
+         </center>
+         <top>
+            <HBox alignment="CENTER" style="-fx-background-color: ORANGE;" BorderPane.alignment="CENTER">
+               <children>
+                  <Text fx:id="selectedUser" strokeType="OUTSIDE" strokeWidth="0.0" text="User" />
+                  <Button fx:id="refreshButton" alignment="TOP_RIGHT" mnemonicParsing="false" text="Refresh">
+                     <HBox.margin>
+                        <Insets left="100.0" />
+                     </HBox.margin>
+                  </Button>
+               </children>
+            </HBox>
+         </top>
+      </BorderPane>
+   </children>
+</HBox>

@@ -14,7 +14,8 @@ public class Message implements Serializable, Comparable<Message> {
     private String receiver;
 
     private String message;
-    private String key;
+    private String senderKey;
+    private String receiverKey;
     private String signature;
 
     /** Returns current date */
@@ -35,19 +36,21 @@ public class Message implements Serializable, Comparable<Message> {
         byte[] b1 = e.aesEncrypt(m, k);
         this.message = Base64.getEncoder().encodeToString( b1 );
 
-        this.key = Base64.getEncoder().encodeToString( e.rsaEncrypt( Base64.getEncoder().encodeToString( k.getEncoded() ) ) );
+        this.senderKey = Base64.getEncoder().encodeToString( e.rsaEncrypt(s, Base64.getEncoder().encodeToString( k.getEncoded() )) );
+        this.receiverKey = Base64.getEncoder().encodeToString( e.rsaEncrypt(r, Base64.getEncoder().encodeToString( k.getEncoded() )) );
 
-        this.signature = Base64.getEncoder().encodeToString( e.generateSignature( this.message.getBytes() ) );
+        this.signature = Base64.getEncoder().encodeToString( e.generateSignature( Base64.getDecoder().decode(this.message) ) );
     }
 
     @Override
     public String toString() {
-        return "message{" +
+        return "Message{" +
                 "date='" + date + '\'' +
                 ", sender='" + sender + '\'' +
                 ", receiver='" + receiver + '\'' +
                 ", message='" + message + '\'' +
-                ", key='" + key + '\'' +
+                ", senderKey='" + senderKey + '\'' +
+                ", receiverKey='" + receiverKey + '\'' +
                 ", signature='" + signature + '\'' +
                 '}';
     }
@@ -62,9 +65,11 @@ public class Message implements Serializable, Comparable<Message> {
 
     public String getMessage() { return message; }
 
-    public String getKey() {
-        return key;
+    public String getReceiverKey() {
+        return receiverKey;
     }
+
+    public String getSenderKey() { return senderKey; }
 
     public String getSignature() {
         return signature;

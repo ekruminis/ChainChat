@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.paint.*?>
+<?import javafx.scene.shape.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.text.*?>
+<?import java.lang.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox alignment="CENTER" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.BlockchainController">
+   <children>
+      <Text strokeType="OUTSIDE" strokeWidth="0.0" text="When a user sends a message, the message is encrypted and distributed to other users.. However it is important to note that this message (and others) are not immediately deemed &quot;official&quot;.&#10;&#10;For a message to be &quot;official&quot; it first needs to be mined into a block - by clicking the button below you will use your computers processing power to solve a 'proof-of-work' challenge (the current difficulty of the challenge can be seen below the button). Once the block with all the messages is mined, it will be distributed to other users - if this block is part of the currently active blockchain and is buried under more blocks, then the message can be assumed to to be &quot;official&quot;. This means that the messages in that block will be permanently included in the blockchain and can be considered to be unerasable.&#10;&#10;The explanation of message bubbles can be seen below:" wrappingWidth="800.0" VBox.vgrow="ALWAYS" />
+      <VBox alignment="CENTER" style="-fx-background-color: darkgrey;">
+         <children>
+            <HBox alignment="CENTER">
+               <children>
+                  <Circle fill="DODGERBLUE" radius="10.0" stroke="BLACK" strokeType="INSIDE" HBox.hgrow="ALWAYS">
+                     <HBox.margin>
+                        <Insets left="10.0" />
+                     </HBox.margin>
+                  </Circle>
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="- the message is currently part of the active blockchain but is not yet &quot;official&quot;.." HBox.hgrow="ALWAYS">
+                     <HBox.margin>
+                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                     </HBox.margin>
+                  </Text>
+               </children>
+            </HBox>
+            <HBox alignment="CENTER">
+               <children>
+                  <Circle fill="#4dff1f" radius="10.0" stroke="BLACK" strokeType="INSIDE" HBox.hgrow="ALWAYS">
+                     <HBox.margin>
+                        <Insets />
+                     </HBox.margin>
+                  </Circle>
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="- the message can be deemed &quot;official&quot;.." HBox.hgrow="ALWAYS">
+                     <HBox.margin>
+                        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+                     </HBox.margin>
+                  </Text>
+               </children>
+            </HBox>
+         </children>
+      </VBox>
+      <Button fx:id="mineButton" mnemonicParsing="false" text="Mine">
+         <VBox.margin>
+            <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+         </VBox.margin>
+      </Button>
+      <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Current block time is: 20 seconds" textAlignment="CENTER" VBox.vgrow="ALWAYS">
+         <VBox.margin>
+            <Insets bottom="5.0" left="5.0" right="5.0" />
+         </VBox.margin>
+      </Text>
+   </children>
+   <padding>
+      <Insets bottom="25.0" left="25.0" right="25.0" top="25.0" />
+   </padding>
+</VBox>

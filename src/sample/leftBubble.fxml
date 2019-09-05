@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.*?>
+<?import javafx.scene.text.*?>
+
+<HBox fx:id="leftBubble" alignment="BOTTOM_LEFT" nodeOrientation="LEFT_TO_RIGHT" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <Circle fill="DODGERBLUE" radius="4.0" stroke="BLACK" strokeType="INSIDE">
+         <HBox.margin>
+            <Insets bottom="4.0" left="4.0" right="4.0" top="4.0" />
+         </HBox.margin>
+      </Circle>
+      <Text fill="#171717" nodeOrientation="LEFT_TO_RIGHT" stroke="BLACK" strokeLineCap="ROUND" strokeLineJoin="ROUND" strokeType="INSIDE" strokeWidth="0.0" text="test.." wrappingWidth="400.0" HBox.hgrow="ALWAYS">
+         <HBox.margin>
+            <Insets left="3.0" right="10.0" top="10.0" />
+         </HBox.margin></Text>
+   </children>
+</HBox>

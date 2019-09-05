@@ -1,5 +1,8 @@
 package sample;
 
+import io.ipfs.multibase.Multibase;
+
+import javax.crypto.spec.SecretKeySpec;
 import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
@@ -26,6 +29,33 @@ public class Messenger {
         }
 
         // TODO if message not official yet, resend message (to new miners) - check date of msg, and then search for blocks with date posted later than msg
+    }
+
+    public String readMessage(sample.Message msg, String key) {
+        System.out.println("decrypting msg..");
+        String m = null;
+        if(msg.getReceiver().equals(key)) {
+            if(sample.Main.encryption.verifySignature( Base64.getDecoder().decode(msg.getMessage()), Base64.getDecoder().decode(msg.getSignature()), msg.getSender())) {
+                System.out.println("signature valid..");
+                String encKey = msg.getReceiverKey();
+                String decKey = sample.Main.encryption.rsaDecrypt(Base64.getDecoder().decode(encKey));
+                Key finalKey = new SecretKeySpec(Base64.getDecoder().decode(decKey), "AES");
+
+                m = sample.Main.encryption.aesDecrypt(Base64.getDecoder().decode(msg.getMessage()), finalKey);
+            }
+        }
+        else if(msg.getSender().equals(key)) {
+            if(sample.Main.encryption.verifySignature( Base64.getDecoder().decode(msg.getMessage()), Base64.getDecoder().decode(msg.getSignature()), msg.getSender())) {
+                System.out.println("signature is valid..");
+                String encKey = msg.getSenderKey();
+                String decKey = sample.Main.encryption.rsaDecrypt(Base64.getDecoder().decode(encKey));
+                Key finalKey = new SecretKeySpec(Base64.getDecoder().decode(decKey), "AES");
+
+                m = sample.Main.encryption.aesDecrypt(Base64.getDecoder().decode(msg.getMessage()), finalKey);
+            }
+        }
+
+        return m;
     }
 
 }

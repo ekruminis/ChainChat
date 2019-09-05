@@ -54,21 +54,27 @@ public class Network {
     private sample.Blockchain chain;
     private LinkedList<sample.chainTip> chainTips = new LinkedList<>();
     private boolean start = true;
+    private Peer peer;
 
     /** Creates RSA key pair for user */
     public void generateRSAKey() {
         // TODO warn about overriding? or just create with new name
         try {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-            keyGen.initialize(2048);
-            KeyPair pair = keyGen.generateKeyPair();
-            FileOutputStream fos = new FileOutputStream("publicKey");
-            fos.write(pair.getPublic().getEncoded());
-            fos.close();
+            if(!new File("publicKey").exists() && !new File("privateKey").exists()) {
+                sample.Main.mainController.setProgressPercentage(4);
+                sample.Main.mainController.setProgressInfo("generating RSA keys..");
 
-            fos = new FileOutputStream("privateKey");
-            fos.write(pair.getPrivate().getEncoded());
-            fos.close();
+                KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+                keyGen.initialize(2048);
+                KeyPair pair = keyGen.generateKeyPair();
+                FileOutputStream fos = new FileOutputStream("publicKey");
+                fos.write(pair.getPublic().getEncoded());
+                fos.close();
+
+                fos = new FileOutputStream("privateKey");
+                fos.write(pair.getPrivate().getEncoded());
+                fos.close();
+            }
         } catch (Exception e) {
             System.out.println("GEN RSA KEY ERROR: " + e);
         }
@@ -133,37 +139,71 @@ public class Network {
         return messagesFile;
     }
 
-    /** Joins the P2P network, creates temp file, and listens for messages saving them in file */
-    public void connect(String adr, int port) {
-        try {
-            this.messagesFile = File.createTempFile("messages-", ".txt");
-            System.out.println("filename: " + messagesFile.getName());
-            messagesFile.deleteOnExit();
+    public void quitPeer() {
+        if(peer != null) {
+            peer.shutdown();
+        }
+    }
 
-            this.chain = new sample.Blockchain();
+    /** Joins the P2P network, creates temp file, and listens for messages saving them in file */
+    public void connect(String adr, int targetPort, int myPort) {
+        try {
+            sample.Main.mainController.setProgressPercentage(0);
+            sample.Main.mainController.setProgressInfo("");
+
+            this.messagesFile = File.createTempFile("messages-", ".txt");
+            System.out.println("msg's filename: " + messagesFile.getName());
+            messagesFile.deleteOnExit();
 
             Random rnd = new Random();
             Bindings b = new Bindings();
             //b.addInterface("eth3");
-            Peer peer = new PeerBuilder(new Number160(rnd)).bindings(b).ports(port).start();
+
+            sample.Main.mainController.setProgressPercentage(2);
+            sample.Main.mainController.setProgressInfo("creating own peer..");
+
+            peer = new PeerBuilder(new Number160(rnd)).bindings(b).ports(myPort).start();
 
             pdht = new PeerBuilderDHT(peer).start();
 
             System.out.println("My Address: " + peer.peerAddress().inetAddress() + ":" + peer.peerAddress().tcpPort());
+
+            if(peer.peerAddress().inetAddress().toString().substring(1, peer.peerAddress().inetAddress().toString().length()).equals(adr) && peer.peerAddress().tcpPort() == targetPort) {
+                sample.Main.mainController.setProgressPercentage(100);
+                sample.Main.mainController.setProgressInfo("ERROR: You cannot bootstrap to yourself!");
+                throw new Exception("You cannot bootstrap to yourself!");
+            }
 //                for (; ; ) {
 //                    for (PeerAddress pa : peer.peerBean().peerMap().all()) {
 //                        System.out.println("peer online (TCP):" + pa);
 //                    }
 //                    Thread.sleep(2000);
 //                }
-            FutureBootstrap futureBootstrap = peer.bootstrap().inetAddress(InetAddress.getByName(adr)).ports(4001).start();
-            futureBootstrap.awaitUninterruptibly();
 
+            sample.Main.mainController.setProgressPercentage(3);
+            sample.Main.mainController.setProgressInfo("checking RSA key exist..");
             generateRSAKey();
 
-            // ask peers for their chaintip
-            announce("rct");
-            System.out.println("'rct' -> asking peers for their chaintip");
+            this.chain = new sample.Blockchain();
+
+            sample.Main.mainController.setProgressPercentage(5);
+            sample.Main.mainController.setProgressInfo("bootstrapping to another peer..");
+
+            FutureBootstrap futureBootstrap = peer.bootstrap().inetAddress(InetAddress.getByName(adr)).ports(targetPort).start();
+            futureBootstrap.awaitUninterruptibly();
+
+            if(peer.peerBean().peerMap().all().size() == 0) {
+                sample.Main.mainController.setProgressPercentage(100);
+                sample.Main.mainController.setProgressInfo("could not bootstrap to peer.. try again or continue using the application");
+            }
+            else {
+                sample.Main.mainController.setProgressPercentage(10);
+                sample.Main.mainController.setProgressInfo("asking peers for their chaintip..");
+
+                // ask peers for their chaintip
+                announce("rct");
+                System.out.println("'rct' -> asking peers for their chaintip");
+            }
 
             peer.objectDataReply(new ObjectDataReply() {
                 @Override
@@ -186,26 +226,25 @@ public class Network {
                             // Verify block has been mined successfully ie. hash starts with correct no. of 0's
                             if(new sample.Mining().verifyMined( (sample.Block) o ) ) {
                                 System.out.println("block received is mined..");
-                                if(chain.validateDifficulty( (sample.Block) o )) {
-                                    System.out.println("block received is in correct difficulty..");
-                                    if (chain.validateInChain((sample.Block) o)) {
-                                        System.out.println("block is linked, so we add it");
+                                if (chain.validateInChain((sample.Block) o)) {
+                                    System.out.println("block is linked, so we add it");
+                                    // TODO (more verification/validation on blocks eg. check signatures? )
+                                    if(chain.validateDifficulty((sample.Block) o)) {
                                         // Store block in LevelDB
-                                        // TODO (more verification/validation on blocks eg. check signatures? )
                                         String h = new sample.Mining().hash((sample.Block) o);
                                         chain.storeBlock(h, (sample.Block) o);
                                         chain.checkUnofficial(pa);
                                     }
-                                    // Block not in chain, so we ask peer for prevBlock
                                     else {
-                                        System.out.println("block received is not in chain..");
-                                        chain.addUnofficial((sample.Block) o, pa);
-                                        System.out.println("asking peer for block: " + ((sample.Block) o).getPreviousHash() );
-                                        announce(("b-" + ((sample.Block) o).getPreviousHash()), pa);
+                                        System.out.println("block difficulty levels are not correct!");
                                     }
                                 }
+                                // Block not in chain, so we ask peer for prevBlock
                                 else {
-                                    System.out.println("Block received not correct difficulty");
+                                    System.out.println("block received is not in chain..");
+                                    chain.addUnofficial((sample.Block) o, pa);
+                                    System.out.println("asking peer for block: " + ((sample.Block) o).getPreviousHash() );
+                                    announce(("b-" + ((sample.Block) o).getPreviousHash()), pa);
                                 }
                             }
                             else {
@@ -226,7 +265,14 @@ public class Network {
                                 System.out.println("Chain headers received from " + pa);
                                 System.out.println("\n\nheaders: " + (LinkedList<sample.indexBlock>)o);
 
+                                sample.Main.mainController.setProgressPercentage(35);
+                                sample.Main.mainController.setProgressInfo("chain headers received, beginning evaluation of full chain..");
+
                                 if (chain.validateHeaders((LinkedList<sample.indexBlock>) o)) {
+
+                                    sample.Main.mainController.setProgressPercentage(60);
+                                    sample.Main.mainController.setProgressInfo("chain headers validated, asking peer for full blockchain..");
+
                                     System.out.println("headers validated");
                                     System.out.println("\nBlocks to request: " + chain.getRequest() );
                                     announce(chain.getRequest(), pa);
@@ -238,13 +284,25 @@ public class Network {
 
                             // Check if we received a list of blocks
                             else if(test instanceof sample.Block) {
+
+                                sample.Main.mainController.setProgressPercentage(64);
+                                sample.Main.mainController.setProgressInfo("full blockchain received, storing valid blocks..");
+
                                 System.out.println("Chain of blocks received from " + pa);
                                 boolean success = chain.syncBlocks( (LinkedList<sample.Block>) o );
 
                                 // if some blocks are missing, request them again
                                 if(!success) {
+
+                                    sample.Main.mainController.setProgressPercentage(70);
+                                    sample.Main.mainController.setProgressInfo("not all blocks received, asking peer for missing blocks..");
+
                                     System.out.println("LinkedList -> not all blockchain blocks received");
                                     announce(chain.getRequest(), pa);
+                                }
+                                else if(success) {
+                                    sample.Main.mainController.setProgressPercentage(100);
+                                    sample.Main.mainController.setProgressInfo("SUCCESS!! Blockchain data syncing finished, you can now begin messaging..");
                                 }
                             }
 
@@ -265,12 +323,17 @@ public class Network {
 
                     // ChainTip received -> add tips, start countdown (wait 10sec for replies, then start evaluating them)
                     else if(o.getClass().getName().equals(sample.indexBlock.class.getName())) {
+                        sample.Main.mainController.setProgressPercentage(15);
+                        sample.Main.mainController.setProgressInfo("storing chaintip headers..");
+
                         System.out.println("chaintip received from " + pa + "\nheader: " + o);
                         sample.chainTip ct = new sample.chainTip( (sample.indexBlock)o, pa);
                         chainTips.add(ct);
 
                         System.out.println("chainTips: " + chainTips);
                         if(start) {
+                            sample.Main.mainController.setProgressPercentage(17);
+                            sample.Main.mainController.setProgressInfo("waiting for more chaintip headers..");
                             System.out.println("Chaintip countdown started..");
                         }
                         startCount(start);
@@ -320,6 +383,7 @@ public class Network {
 
         } catch(Exception e) {
             System.out.println("CONNECT ERROR: " + e);
+            peer.shutdown();
         }
     }
 
@@ -337,6 +401,8 @@ public class Network {
                     },
                     4000
             );
+            sample.Main.mainController.setProgressPercentage(18);
+            sample.Main.mainController.setProgressInfo("beginning evaluation of chaintip headers..");
         }
     }
     /** Evaluates potential chaintips to find the one with the highest difficulty and then contacts the peer to get full header chain */
@@ -359,6 +425,9 @@ public class Network {
         String hash = chain.getConfirmed();
 
         System.out.println("data gathered");
+
+        sample.Main.mainController.setProgressPercentage(25);
+        sample.Main.mainController.setProgressInfo("highest chaintip found, asking peer for full chain of headers..");
 
         announce(("rch-"+hash), peer);
         System.out.println("rch-"+hash+", sent to " + peer);
