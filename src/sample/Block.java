@@ -1,10 +1,6 @@
 package sample;
 
 import java.io.Serializable;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.security.Key;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -29,27 +25,33 @@ public class Block implements Serializable {
         return sdf.format(new Date().getTime());
     }
 
+    /** Returns the date of the block as a String */
     public String getDate() { return date; }
 
+    /** Returns the index of the block as a long */
     public long getIndex() {
         return index;
     }
 
+    /** Return the hash of the child (previous block) block as a String */
     public String getPreviousHash() {
         return previousHash;
     }
 
+    /** Returns the nonce value of the block as a long */
     public long getNonce() {
         return nonce;
     }
 
+    /** Returns the hash of the merkle root as a String */
     public String getMerkleRoot() { return merkleRoot; }
 
+    /** Returns the approximate average number of hashes required to solve the proof-of-work challenge */
     public long getTotalDifficulty() {
         return totalDifficulty;
     }
 
-    /** Constructor */
+    /** Constructor v1*/
     public Block(String mr, long i, String ph, long dl, long tdl) {
         this.index = i;
         this.date = makeDate();
@@ -60,7 +62,7 @@ public class Block implements Serializable {
         this.totalDifficulty = tdl;
     }
 
-    /** Constructor */
+    /** Constructor v2*/
     public Block(long i, String d, String ph, long n, long dl, String mr, long tdl) {
         this.index = i;
         this.date = d;
@@ -84,10 +86,12 @@ public class Block implements Serializable {
                 '}';
     }
 
+    /** Sets the messages of the block inside a TreeSet */
     public void setMessages(TreeSet<sample.Message> mlist) {
         this.messages = mlist;
     }
 
+    /** Returns the message of the block inside a TreeSet */
     public TreeSet<sample.Message> getMessages() {
         return messages;
     }

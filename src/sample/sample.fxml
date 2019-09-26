@@ -31,9 +31,9 @@
                         <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
                      </padding>
                      <children>
-                        <ImageView fitWidth="36.0" pickOnBounds="true" preserveRatio="true">
+                        <ImageView fitWidth="50.0" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@../../images/icons8-chat-50.png" />
+                              <Image url="@../../images/logo2.png" />
                            </image>
                         </ImageView>
                         <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="ChainChat">
@@ -76,7 +76,7 @@
                      <children>
                         <ImageView fitWidth="36.0" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@../../images/icons8-chat-50.png" />
+                              <Image url="@../../images/icons8-contacts-50.png" />
                            </image>
                         </ImageView>
                         <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Contacts">
@@ -95,11 +95,11 @@
                         <Insets bottom="15.0" />
                      </VBox.margin>
                   </HBox>
-                  <HBox fx:id="settings" alignment="CENTER_LEFT" style="-fx-background-color: #c93318;">
+                  <HBox fx:id="settings" alignment="CENTER_LEFT" style="-fx-background-color: #c93318;" visible="false">
                      <children>
                         <ImageView fitWidth="36.0" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@../../images/icons8-chat-50.png" />
+                              <Image url="@../../images/icons8-settings-50.png" />
                            </image>
                         </ImageView>
                         <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Settings">
@@ -122,7 +122,7 @@
                      <children>
                         <ImageView fitWidth="36.0" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@../../images/icons8-chat-50.png" />
+                              <Image url="@../../images/icons8-blockchain-technology-50.png" />
                            </image>
                         </ImageView>
                         <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Blockchain">
@@ -138,14 +138,14 @@
                         <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
                      </padding>
                      <VBox.margin>
-                        <Insets bottom="15.0" top="190.0" />
+                        <Insets bottom="100.0" top="15.0" />
                      </VBox.margin>
                   </HBox>
                   <HBox fx:id="exit" alignment="CENTER_LEFT" style="-fx-background-color: #c93318;">
                      <children>
                         <ImageView fitWidth="36.0" pickOnBounds="true" preserveRatio="true">
                            <image>
-                              <Image url="@../../images/icons8-chat-50.png" />
+                              <Image url="@../../images/icons8-exit-50.png" />
                            </image>
                         </ImageView>
                         <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Exit">
@@ -160,6 +160,9 @@
                      <padding>
                         <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
                      </padding>
+                     <VBox.margin>
+                        <Insets top="50.0" />
+                     </VBox.margin>
                   </HBox>
                </children>
             </VBox>

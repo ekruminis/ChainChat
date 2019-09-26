@@ -18,21 +18,28 @@ public class Message implements Serializable, Comparable<Message> {
     private String receiverKey;
     private String signature;
 
-    /** Returns current date */
+    /** Returns current date
+     * @return Returns the date as a String in the 'yyyy-MM-dd HH:mm:ss.SSS' format*/
     public static String makeDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
         return sdf.format(new Date().getTime());
     }
 
-    /** Constructor - encrypts message and adds metadata */
+    /** Constructor - encrypts message and adds metadata
+     * @param s The senders public key
+     * @param r The receivers public key
+     * @param m The message (plaintext) */
     public Message(String s, String r, String m) {
         this.date = makeDate();
         this.sender = s;
         this.receiver = r;
 
         sample.Encryption e = new sample.Encryption();
+
+        // Generate AES key
         Key k = e.generateAESKey();
 
+        // Encrypt message
         byte[] b1 = e.aesEncrypt(m, k);
         this.message = Base64.getEncoder().encodeToString( b1 );
 
@@ -45,14 +52,14 @@ public class Message implements Serializable, Comparable<Message> {
     @Override
     public String toString() {
         return "Message{" +
-                "date='" + date + '\'' +
-                ", sender='" + sender + '\'' +
-                ", receiver='" + receiver + '\'' +
-                ", message='" + message + '\'' +
-                ", senderKey='" + senderKey + '\'' +
-                ", receiverKey='" + receiverKey + '\'' +
-                ", signature='" + signature + '\'' +
-                '}';
+                "\n\ndate='" + date + '\'' +
+                "\n\nsender='" + sender + '\'' +
+                "\n\nreceiver='" + receiver + '\'' +
+                "\n\nmessage='" + message + '\'' +
+                "\n\nsenderKey='" + senderKey + '\'' +
+                "\n\nreceiverKey='" + receiverKey + '\'' +
+                "\n\nsignature='" + signature + '\'' +
+                "\n\n}";
     }
 
     public String getSender() {

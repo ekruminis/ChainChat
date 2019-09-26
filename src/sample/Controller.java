@@ -1,6 +1,5 @@
 package sample;
 
-import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -10,15 +9,11 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextField;
-import javafx.scene.input.MouseButton;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
-
 import java.net.Inet4Address;
 import java.net.InetAddress;
-import java.util.ConcurrentModificationException;
 import java.util.Timer;
 
 public class Controller {
@@ -60,7 +55,7 @@ public class Controller {
     @FXML
     private TextField myPeerPort;
 
-    // styles used for vboxes
+    // styles used for vboxes highlighting
     private final Background focusBackground = new Background( new BackgroundFill( Color.web("#7a1f0f"), CornerRadii.EMPTY, Insets.EMPTY ) );
     private final Background unfocusBackground = new Background( new BackgroundFill( Color.web("#c93318"), CornerRadii.EMPTY, Insets.EMPTY ) );
 
@@ -69,18 +64,19 @@ public class Controller {
         loading();
     }
 
+    /** Setups the main screen */
     private void loading() {
         waitText.setText("Please enter the IP:Port pair of some peer to bootstrap to..");
         bootstrapButton.setOnAction((e) -> {
+            // Check if inputs are valid (peer not empty and =4 numbers, ip is valid format)
             if(!bootstrapIP.getText().equals("") && myPeerPort.getText().length() == 4 && bootstrapIP.getText().substring(bootstrapIP.getText().length()-5, bootstrapIP.getText().length()-4).equals(":")) {
+
+                // Get IP data
                 String adr = bootstrapIP.getText();
-
                 int targetPort = Integer.parseInt(adr.substring(adr.length()-4, adr.length()));
-                System.out.println("targetPort is: " + targetPort);
-
                 String ip = adr.substring(0, adr.length()-5);
-                System.out.println("targetIP is: " + ip);
 
+                // Check if its a valid IPv4 IP
                 boolean validIP = false;
                 try {
                     validIP = InetAddress.getByName(ip) instanceof Inet4Address;
@@ -97,6 +93,7 @@ public class Controller {
 
                     waitText.setText("Please wait while the application finishes loading...");
 
+                    // Boostrap to listed peer
                     new Thread(() -> {
                         System.out.println("cmd - connect");
                         sample.Main.network.quitPeer();
@@ -117,6 +114,7 @@ public class Controller {
             }
         });
 
+        // If not finished, disable all other input
         if(progressBar.getProgress() != 100) {
             optionsMenu.setOnMouseClicked((e) -> {
                 System.out.println("clicked");
@@ -136,9 +134,13 @@ public class Controller {
         }
     }
 
+    /** Set the level of the progress bar
+     * @param percentage The percentage of the bar that should be filled */
     public void setProgressPercentage(int percentage) {
         progressPercentage.setText("Progress - " + percentage + "%");
         progressBar.setProgress((double)percentage/100);
+
+        // Finished, so enable menu input
         if(percentage == 100) {
             waitText.setText("Finished loading..");
             optionsMenu.setDisable(false);
@@ -146,14 +148,20 @@ public class Controller {
         }
     }
 
+    /** Set the info of the progress bar
+     * @param text The text that should be displayed */
     public void setProgressInfo(String text) {
         progressInfo.setText(text);
+
+        // Bootstrap valid, so enable menu input
         if(progressInfo.getText().equals("could not bootstrap to peer.. try again or continue using the application")) {
             waitText.setText("Finished loading..");
             bootstrapButton.setDisable(false);
             bootstrapIP.setDisable(false);
             myPeerPort.setDisable(false);
         }
+
+        // Bootstrap not valid, allow user to bootstrap again
         else if(progressInfo.getText().equals("ERROR: You cannot bootstrap to yourself!")) {
             waitText.setText("Finished loading..");
             bootstrapButton.setDisable(false);
@@ -163,9 +171,10 @@ public class Controller {
         }
     }
 
+    /** Enable menu controls */
     private void listen() {
+        // Open messages screen
         messages.setOnMouseClicked( ( e ) -> {
-            System.out.println("messages clicked");
             messages.requestFocus();
             messages.backgroundProperty().bind( Bindings
                     .when( messages.focusedProperty() )
@@ -175,6 +184,10 @@ public class Controller {
 
             if(msgController != null) {
                 msgController.loadConversations();
+                if(msgController.selectedUser.getText() != null || !msgController.selectedUser.getText().equals("")) {
+                    msgController.chatBox.getChildren().clear();
+                    msgController.loadMessages();
+                }
             }
 
             HBox hb = null;
@@ -224,8 +237,8 @@ public class Controller {
 
         });
 
+        // Open contacts menu
         contacts.setOnMouseClicked( ( e ) -> {
-            System.out.println("contacts clicked");
             contacts.requestFocus();
             contacts.backgroundProperty().bind( Bindings
                     .when( contacts.focusedProperty() )
@@ -282,8 +295,8 @@ public class Controller {
 
         });
 
+        // Open settings menu
         settings.setOnMouseClicked( ( e ) -> {
-            System.out.println("settings clicked");
             settings.requestFocus();
             settings.backgroundProperty().bind( Bindings
                     .when( settings.focusedProperty() )
@@ -318,8 +331,8 @@ public class Controller {
             }
         });
 
+        // Open blockchain menu
         blockchain.setOnMouseClicked( ( e ) -> {
-            System.out.println("blockchain clicked");
             blockchain.requestFocus();
             blockchain.backgroundProperty().bind( Bindings
                     .when( blockchain.focusedProperty() )
@@ -370,6 +383,7 @@ public class Controller {
             }
         });
 
+        // Close window and app
         exit.setOnMouseClicked( ( e ) -> {
             System.out.println("exit clicked");
             exit.requestFocus();

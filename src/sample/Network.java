@@ -1,42 +1,20 @@
 package sample;
 
-import com.sun.corba.se.impl.orbutil.ObjectWriter;
-import com.sun.security.ntlm.Server;
-import fr.rhaz.ipfs.IPFSDaemon;
-import io.ipfs.api.IPFS;
-import io.ipfs.api.MerkleNode;
-import io.ipfs.api.NamedStreamable;
-import io.ipfs.multiaddr.MultiAddress;
-import io.ipfs.multihash.Multihash;
 import net.tomp2p.connection.Bindings;
-import net.tomp2p.connection.PeerConnection;
 import net.tomp2p.dht.FutureGet;
-import net.tomp2p.dht.FuturePut;
 import net.tomp2p.dht.PeerBuilderDHT;
 import net.tomp2p.dht.PeerDHT;
 import net.tomp2p.futures.BaseFutureAdapter;
 import net.tomp2p.futures.FutureBootstrap;
 import net.tomp2p.futures.FutureDirect;
-import net.tomp2p.futures.FutureDiscover;
-import net.tomp2p.message.Message;
-import net.tomp2p.nat.FutureNAT;
-import net.tomp2p.nat.FutureRelayNAT;
-import net.tomp2p.nat.PeerBuilderNAT;
-import net.tomp2p.nat.PeerNAT;
 import net.tomp2p.p2p.Peer;
 import net.tomp2p.p2p.PeerBuilder;
 import net.tomp2p.peers.Number160;
 import net.tomp2p.peers.PeerAddress;
-import net.tomp2p.peers.PeerSocketAddress;
-import net.tomp2p.relay.BaseRelayClient;
-import net.tomp2p.relay.RelayClientConfig;
 import net.tomp2p.rpc.ObjectDataReply;
 import net.tomp2p.storage.Data;
-import net.tomp2p.tracker.PeerTracker;
 import org.apache.commons.lang3.SerializationUtils;
 import org.codehaus.jackson.map.ObjectMapper;
-import sun.nio.ch.Net;
-
 import java.io.*;
 import java.net.*;
 import java.security.KeyPair;
@@ -44,11 +22,6 @@ import java.security.KeyPairGenerator;
 import java.util.*;
 
 public class Network {
-    // TODO download() - download entire blockchain
-    // TODO getUsers() - download list of current users + their PubKeys
-    // TODO register() - generate userID and RSA key, distribute details to others
-    // TODO delete()   - delete RSA keys from user
-
     private PeerDHT pdht;
     private File messagesFile;
     private sample.Blockchain chain;
@@ -58,8 +31,8 @@ public class Network {
 
     /** Creates RSA key pair for user */
     public void generateRSAKey() {
-        // TODO warn about overriding? or just create with new name
         try {
+            //  If we don't already have a public/private key pair, create one
             if(!new File("publicKey").exists() && !new File("privateKey").exists()) {
                 sample.Main.mainController.setProgressPercentage(4);
                 sample.Main.mainController.setProgressInfo("generating RSA keys..");
@@ -80,26 +53,10 @@ public class Network {
         }
     }
 
-    // IPFS -> https://github.com/ipfs/java-ipfs-http-client
-    //      -> https://ianopolous.github.io/java/IPFS
-    //
-    // Daemon -> https://github.com/hazae41/jvm-ipfs-daemon
-    /** Uploads block into IPFS network */
-    public String ipfsUpload(sample.Block b) {
-        IPFS ipfs = new IPFS(new MultiAddress("/ip4/127.0.0.1/tcp/5001"));
-
-        try {
-            NamedStreamable ns = new NamedStreamable.ByteArrayWrapper(b.toString().getBytes());
-            List<MerkleNode> tree = ipfs.add(ns);
-            return tree.get(0).hash.toString();
-
-        } catch (Exception e) {
-            System.out.println("NETWORK ERROR: " + e);
-            return null;
-        }
-    }
-
-    /** Gets msg from P2P network's distributed hash table */
+    /** Gets msg from P2P network's distributed hash table
+     * @param name The key we want to read
+     * @return Returns the value of the message
+     */
     public String get(String name) {
         try {
             FutureGet futureGet = pdht.get(Number160.createHash(name)).start();
@@ -114,7 +71,10 @@ public class Network {
         }
     }
 
-    /** Stores msg from P2P network's distributed hash table */
+    /** Stores msg from P2P network's distributed hash table
+     * @param name The key value
+     * @param ip The ip of the user
+     */
     public void store(String name, String ip) {
         try {
             pdht.put(Number160.createHash(name)).data(new Data(ip)).start().awaitUninterruptibly();
@@ -123,7 +83,10 @@ public class Network {
         }
     }
 
-    /** JSON Encoding of object */
+    /** JSON Encoding of an object
+     * @param o The object we want to encode
+     * @return Returns JSON representation of the object
+     */
     public String encode(Object o) {
         try {
             ObjectMapper om = new ObjectMapper();
@@ -134,23 +97,31 @@ public class Network {
         }
     }
 
-    /** Returns temp messages file */
+    /** Returns the temporary messages file
+     * @return Returns the temporary messages file as a File object
+     */
     public File getMessagesFile() {
         return messagesFile;
     }
 
+    /** Shutdowns the current peer if one exists */
     public void quitPeer() {
         if(peer != null) {
             peer.shutdown();
         }
     }
 
-    /** Joins the P2P network, creates temp file, and listens for messages saving them in file */
+    /** Joins the P2P network, creates temp file, and listens for messages from other peers
+     * @param adr The IPv4 of the peer we want to bootstrap to
+     * @param targetPort The port value of the peer we want to bootstrap to
+     * @param myPort The port value of my own port that I want to listen from
+     */
     public void connect(String adr, int targetPort, int myPort) {
         try {
             sample.Main.mainController.setProgressPercentage(0);
             sample.Main.mainController.setProgressInfo("");
 
+            // Create temporary file to hold to-mine messages, which is deleted on app exit
             this.messagesFile = File.createTempFile("messages-", ".txt");
             System.out.println("msg's filename: " + messagesFile.getName());
             messagesFile.deleteOnExit();
@@ -162,17 +133,19 @@ public class Network {
             sample.Main.mainController.setProgressPercentage(2);
             sample.Main.mainController.setProgressInfo("creating own peer..");
 
+            // Create and start my own peer client
             peer = new PeerBuilder(new Number160(rnd)).bindings(b).ports(myPort).start();
-
             pdht = new PeerBuilderDHT(peer).start();
 
             System.out.println("My Address: " + peer.peerAddress().inetAddress() + ":" + peer.peerAddress().tcpPort());
 
+            // Check if we are trying to bootstrap to ourselves and throw exception if so
             if(peer.peerAddress().inetAddress().toString().substring(1, peer.peerAddress().inetAddress().toString().length()).equals(adr) && peer.peerAddress().tcpPort() == targetPort) {
                 sample.Main.mainController.setProgressPercentage(100);
                 sample.Main.mainController.setProgressInfo("ERROR: You cannot bootstrap to yourself!");
                 throw new Exception("You cannot bootstrap to yourself!");
             }
+
 //                for (; ; ) {
 //                    for (PeerAddress pa : peer.peerBean().peerMap().all()) {
 //                        System.out.println("peer online (TCP):" + pa);
@@ -180,6 +153,7 @@ public class Network {
 //                    Thread.sleep(2000);
 //                }
 
+            // Generating RSA key pair if needed
             sample.Main.mainController.setProgressPercentage(3);
             sample.Main.mainController.setProgressInfo("checking RSA key exist..");
             generateRSAKey();
@@ -189,9 +163,11 @@ public class Network {
             sample.Main.mainController.setProgressPercentage(5);
             sample.Main.mainController.setProgressInfo("bootstrapping to another peer..");
 
+            // Trying to bootstrap to chosen peer
             FutureBootstrap futureBootstrap = peer.bootstrap().inetAddress(InetAddress.getByName(adr)).ports(targetPort).start();
             futureBootstrap.awaitUninterruptibly();
 
+            // Check if bootstrap was successful
             if(peer.peerBean().peerMap().all().size() == 0) {
                 sample.Main.mainController.setProgressPercentage(100);
                 sample.Main.mainController.setProgressInfo("could not bootstrap to peer.. try again or continue using the application");
@@ -205,21 +181,29 @@ public class Network {
                 System.out.println("'rct' -> asking peers for their chaintip");
             }
 
+            // Listen for any messages in the network
             peer.objectDataReply(new ObjectDataReply() {
                 @Override
                 public Object reply(PeerAddress pa, Object o) throws Exception {
 
-                    // Message received
+                    // Message object received, so verify its signature and if valid add it to our messages file
                     if(o.getClass().getName().equals(sample.Message.class.getName())) {
                         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(getMessagesFile(), true))) {
-                            oos.writeObject(o);
+                            sample.Message msg = (sample.Message) o;
                             System.out.println("MSG RECEIVED: " + o.toString());
+                            if(sample.Main.encryption.verifySignature( Base64.getDecoder().decode(msg.getMessage()), Base64.getDecoder().decode(msg.getSignature()), msg.getSender())) {
+                                oos.writeObject(o);
+                                System.out.println("signature of received message is VALID!");
+                            }
+                            else {
+                                System.out.println("signature of received message is not valid!");
+                            }
                         } catch (Exception e) {
                             System.out.println("SAMPLE.MSG RCV ERROR: " + e);
                         }
                     }
 
-                    // Mined block received
+                    // Mined block received, so validate it and if so store it
                     else if(o.getClass().getName().equals(sample.Block.class.getName())) {
                         try {
                             System.out.println("\n\nBlock received, checking its validity");
@@ -228,7 +212,6 @@ public class Network {
                                 System.out.println("block received is mined..");
                                 if (chain.validateInChain((sample.Block) o)) {
                                     System.out.println("block is linked, so we add it");
-                                    // TODO (more verification/validation on blocks eg. check signatures? )
                                     if(chain.validateDifficulty((sample.Block) o)) {
                                         // Store block in LevelDB
                                         String h = new sample.Mining().hash((sample.Block) o);
@@ -300,6 +283,8 @@ public class Network {
                                     System.out.println("LinkedList -> not all blockchain blocks received");
                                     announce(chain.getRequest(), pa);
                                 }
+
+                                // Initial connection finished, allow user to fully use the app
                                 else if(success) {
                                     sample.Main.mainController.setProgressPercentage(100);
                                     sample.Main.mainController.setProgressInfo("SUCCESS!! Blockchain data syncing finished, you can now begin messaging..");
@@ -321,7 +306,7 @@ public class Network {
                         announce(blockchain, pa);
                     }
 
-                    // ChainTip received -> add tips, start countdown (wait 10sec for replies, then start evaluating them)
+                    // ChainTip received -> add tips, start countdown (wait X seconds for replies, then start evaluating them)
                     else if(o.getClass().getName().equals(sample.indexBlock.class.getName())) {
                         sample.Main.mainController.setProgressPercentage(15);
                         sample.Main.mainController.setProgressInfo("storing chaintip headers..");
@@ -350,7 +335,13 @@ public class Network {
                             // Request ChainTip msg received
                             if(msg.equals("rct")) {
                                 sample.indexBlock ib = chain.getChainTip();
-                                announce(ib, pa);
+                                // if no chaintip exists, send nothing
+                                if(ib == null) {
+                                    announce("ct-null", pa);
+                                }
+                                else {
+                                    announce(ib, pa);
+                                }
                             }
 
                             // Request Block msg received
@@ -366,6 +357,11 @@ public class Network {
                                 String hash = msg.substring(4);
                                 LinkedList<sample.indexBlock> toSend = chain.getHeaders(hash);
                                 announce(toSend, pa);
+                            }
+
+                            else if(msg.equals("ct-null")) {
+                                sample.Main.mainController.setProgressPercentage(100);
+                                sample.Main.mainController.setProgressInfo("No chaintips were found.. You can now use the application");
                             }
 
                         } catch(Exception e) {
@@ -387,7 +383,9 @@ public class Network {
         }
     }
 
-    /** Wait for 4sec, then start evaluating chain tips */
+    /** Wait for 10sec, then start evaluating chain tips
+     * @param start Boolean value used to make sure count is only executed once
+     */
     private void startCount(boolean start) {
         if(start == true) {
             final Timer t = new java.util.Timer();
@@ -399,7 +397,7 @@ public class Network {
                             t.cancel();
                         }
                     },
-                    4000
+                    10000
             );
             sample.Main.mainController.setProgressPercentage(18);
             sample.Main.mainController.setProgressInfo("beginning evaluation of chaintip headers..");
@@ -435,13 +433,16 @@ public class Network {
     }
 
 
-    /** Sends a message(text) directly to all peers it knows */
+    /** Sends a message(text) directly to all peers it knows
+     * @msg The message object we want to transmit
+     */
     public void announce(sample.Message msg) {
         try{
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
+            // Transmit message to each peer individually
             for(PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
                 FutureDirect fd = pdht.peer().sendDirect(pa).object(msg).start();
-                //fd.awaitUninterruptibly();
+
                 fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                     @Override
                     public void operationComplete(FutureDirect future) throws Exception {
@@ -459,13 +460,16 @@ public class Network {
         }
     }
 
-    /** Sends a mined block directly to all peers it knows */
+    /** Sends a mined block directly to all peers it knows
+     * @param b The block object we want to transmit
+     */
     public void announce(sample.Block b) {
         try{
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
+            // Transmit message to each peer individually
             for(PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
                 FutureDirect fd = pdht.peer().sendDirect(pa).object(b).start();
-                //fd.awaitUninterruptibly();
+
                 fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                     @Override
                     public void operationComplete(FutureDirect future) throws Exception {
@@ -483,11 +487,15 @@ public class Network {
         }
     }
 
-    /** Sends a mined block directly to a particular peer */
+    /** Sends a mined block directly to a particular peer
+     * @param b The block object we want to transmit
+     * @param pa The address of the peer we want to send the object to
+     */
     public void announce(sample.Block b, PeerAddress pa) {
         try{
+            // Transmit message to peer directly
             FutureDirect fd = pdht.peer().sendDirect(pa).object(b).start();
-            //fd.awaitUninterruptibly();
+
             fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                 @Override
                 public void operationComplete(FutureDirect future) throws Exception {
@@ -503,11 +511,15 @@ public class Network {
         }
     }
 
-    /** Sends a block header to a particular peer */
+    /** Sends a block header to a particular peer
+     * @param ib The block header object we want to transmit
+     * @param pa The address of the peer we want to send the object to
+     */
     public void announce(sample.indexBlock ib, PeerAddress pa) {
         try{
+            // Transmit message to peer directly
             FutureDirect fd = pdht.peer().sendDirect(pa).object(ib).start();
-            //fd.awaitUninterruptibly();
+
             fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                 @Override
                 public void operationComplete(FutureDirect future) throws Exception {
@@ -523,11 +535,15 @@ public class Network {
         }
     }
 
-    /** Sends a LinkedList of block headers to a particular peer */
+    /** Sends a LinkedList of block headers to a particular peer
+     * @param lib The LinkedList we want to transmit
+     * @param pa The address of the peer we want to send the object to
+     */
     public void announce(LinkedList lib, PeerAddress pa) {
         try{
+            // Transmit message to peer directly
             FutureDirect fd = pdht.peer().sendDirect(pa).object(lib).start();
-            //fd.awaitUninterruptibly();
+
             fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                 @Override
                 public void operationComplete(FutureDirect future) throws Exception {
@@ -543,11 +559,15 @@ public class Network {
         }
     }
 
-    /** Sends a LinkedList of block hashes to a particular peer */
+    /** Sends a LinkedList of block hashes to a particular peer
+     * @param lib The ArrayList we want to transmit
+     * @param pa The address of the peer we want to send the object to
+     */
     public void announce(ArrayList lib, PeerAddress pa) {
         try{
+            // Transmit message to peer directly
             FutureDirect fd = pdht.peer().sendDirect(pa).object(lib).start();
-            //fd.awaitUninterruptibly();
+
             fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                 @Override
                 public void operationComplete(FutureDirect future) throws Exception {
@@ -563,13 +583,15 @@ public class Network {
         }
     }
 
-    /** Sends a String msg to all peers it knows */
+    /** Sends a String msg to all peers it knows
+     * @param s The String object we want to transmit*/
     public void announce(String s) {
         try{
             System.out.println("p adr: " + pdht.peer().peerBean().peerMap().all());
+            // Transmit message to each peer individually
             for (PeerAddress pa : pdht.peer().peerBean().peerMap().all()) {
                 FutureDirect fd = pdht.peer().sendDirect(pa).object(s).start();
-                //fd.awaitUninterruptibly();
+
                 fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                     @Override
                     public void operationComplete(FutureDirect future) throws Exception {
@@ -586,11 +608,15 @@ public class Network {
         }
     }
 
-    /** Sends a String msg to a particular peer */
+    /** Sends a String msg to a particular peer
+     * @param s The String object we want to transmit
+     * @param pa The address of the peer want to send the object to
+     */
     public void announce(String s, PeerAddress pa) {
         try{
+            // Transmit message to peer directly
             FutureDirect fd = pdht.peer().sendDirect(pa).object(s).start();
-            //fd.awaitUninterruptibly();
+
             fd.addListener(new BaseFutureAdapter<FutureDirect>() {
                 @Override
                 public void operationComplete(FutureDirect future) throws Exception {
@@ -606,11 +632,15 @@ public class Network {
         }
     }
 
+    /** Return the chain class object
+     * @return Returns the current chain class object
+     */
     public sample.Blockchain getChain() {
         return chain;
     }
 }
 
+/** The chaintip object which is used to determine which chaintip we want to further examine and which peer we wanted to contact to do so, used when first opening up app */
 class chainTip {
     private final sample.indexBlock ib;
     private final PeerAddress pa;

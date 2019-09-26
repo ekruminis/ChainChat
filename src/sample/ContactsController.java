@@ -12,17 +12,13 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import org.apache.commons.lang3.SerializationUtils;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.DBIterator;
 import org.iq80.leveldb.Options;
 import org.iq80.leveldb.WriteOptions;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Base64;
-import java.util.LinkedList;
-
 import static org.iq80.leveldb.impl.Iq80DBFactory.asString;
 import static org.iq80.leveldb.impl.Iq80DBFactory.factory;
 
@@ -39,11 +35,12 @@ public class ContactsController {
     private Options options = new Options();
     private DB contactsDB;
 
+    /** Setup the contacts screen */
     public void initialize() {
-        System.out.println("opened contacts..");
-
+        // Refresh the contacts list
         reloadList();
 
+        // On 'add' press, open up new window where the user can input the details
         newContactButton.setOnAction( (e) -> {
             Stage dialogStage = new Stage();
             dialogStage.initModality(Modality.WINDOW_MODAL);
@@ -65,10 +62,12 @@ public class ContactsController {
             dialogStage.setScene(new Scene(gp));
             dialogStage.show();
 
+            // Close the window
             cancel.setOnAction(c -> {
                 dialogStage.close();
             });
 
+            // Read user input, add the new contact to contactsDB, and refresh the contacts list
             add.setOnAction(a -> {
                 HBox h1 = (HBox)v1.getChildren().get(1);
                 TextField tf1 = (TextField)h1.getChildren().get(1);
@@ -85,6 +84,7 @@ public class ContactsController {
             });
         });
 
+        // Opens up new window that contains the public key of the user
         getMyPK.setOnAction( (e2) -> {
             Stage dialogStage = new Stage();
             dialogStage.initModality(Modality.WINDOW_MODAL);
@@ -103,15 +103,18 @@ public class ContactsController {
         });
     }
 
+    /** Loop over contacts database and add any contacts to the list */
     public void reloadList() {
+        // clear list first..
         contactsList.getChildren().clear();
 
         DB cdb = getContactsDB();
         DBIterator iterator = cdb.iterator();
         try {
+            // loop over DB
             for(iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
+                // Get key and val
                 String key = asString(iterator.peekNext().getKey());
-
                 String value = asString(iterator.peekNext().getValue());
 
                 VBox vb = null;
@@ -129,11 +132,13 @@ public class ContactsController {
                 Button edit = (Button)vbb2.getChildren().get(0);
                 Button remove = (Button)vbb2.getChildren().get(1);
 
+                // Removes the current data from the Db
                 remove.setOnAction( (e3) -> {
                     remove(getContactsDB(), user.getText().substring(0, user.getText().length()-1).getBytes());
                     reloadList();
                 });
 
+                // Opens up a new screen where the user can update the contact details
                 edit.setOnAction( (e) -> {
                     Stage dialogStage = new Stage();
                     dialogStage.initModality(Modality.WINDOW_MODAL);
@@ -160,6 +165,7 @@ public class ContactsController {
                     dialogStage.setScene(new Scene(vb2));
                     dialogStage.show();
 
+                    // Remove current object and set the new updated one
                     update.setOnAction( (e2) -> {
                         remove(getContactsDB(), chosenUser.getBytes());
 
@@ -170,9 +176,9 @@ public class ContactsController {
 
                 });
 
+                // Set info and add to scene
                 user.setText(key + ":");
                 pubKey.setText(value);
-
                 contactsList.getChildren().add(vb);
             }
 
@@ -192,6 +198,8 @@ public class ContactsController {
         }
     }
 
+    /** Gets the contacts database or creates one if it doesn't already exist
+     * @return Returns the contacts database */
     public DB getContactsDB() {
         try {
             options.createIfMissing(true);
@@ -203,6 +211,11 @@ public class ContactsController {
         }
     }
 
+    /** Stores a key:value pair inside a specified database
+     * @param database The database we want to use
+     * @param key The key of the object as a byte[]
+     * @param value The value of the object as a byte[]
+     */
     public void add(DB database, byte[] key, byte[] value) {
         try {
             database.put(key, value);
@@ -211,15 +224,23 @@ public class ContactsController {
         }
     }
 
-    // return asString(database.get(key));
+    /** Returns the value inside a specified database using its key as a byte[]
+     * @param database The database we want to use
+     * @param key The key of the object as a byte[]
+     * @return Returns the value of the object associated with that key */
     public byte[] read(DB database, byte[] key) {
         try {
             return database.get(key);
+            // return asString(database.get(key)) -> returns val as a String representation
         } finally {
             finish(database);
         }
     }
 
+    /** Removes the key:value pair inside a specified database
+     * @param database The database we want to use
+     * @param key The key of the object as a byte[]
+     */
     public void remove(DB database, byte[] key) {
         try {
             WriteOptions wo = new WriteOptions();
@@ -229,6 +250,9 @@ public class ContactsController {
         }
     }
 
+    /** Closes the specified database (necessary for multithreading)
+     * @param database The database we want to use
+     */
     public void finish(DB database) {
         try {
             database.close();

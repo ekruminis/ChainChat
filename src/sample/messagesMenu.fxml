@@ -66,16 +66,14 @@
             </ScrollPane>
          </center>
          <top>
-            <HBox alignment="CENTER" style="-fx-background-color: ORANGE;" BorderPane.alignment="CENTER">
-               <children>
-                  <Text fx:id="selectedUser" strokeType="OUTSIDE" strokeWidth="0.0" text="User" />
-                  <Button fx:id="refreshButton" alignment="TOP_RIGHT" mnemonicParsing="false" text="Refresh">
-                     <HBox.margin>
-                        <Insets left="100.0" />
-                     </HBox.margin>
-                  </Button>
-               </children>
-            </HBox>
+            <BorderPane style="-fx-background-color: orange;" BorderPane.alignment="CENTER">
+               <right>
+                  <Button fx:id="refreshButton" alignment="TOP_RIGHT" mnemonicParsing="false" text="Refresh" BorderPane.alignment="CENTER" />
+               </right>
+               <center>
+                  <Text fx:id="selectedUser" strokeType="OUTSIDE" strokeWidth="0.0" BorderPane.alignment="CENTER" />
+               </center>
+            </BorderPane>
          </top>
       </BorderPane>
    </children>

@@ -5,7 +5,6 @@ import javax.crypto.spec.IvParameterSpec;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.security.*;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -13,7 +12,10 @@ import java.util.Base64;
 
 public class Encryption {
 
-    /** Creates signature for message */
+    /** Creates signature for a message (SHA512withRSA)
+     * @param message The message itself
+     * @return Returns the signature as a byte[]
+     */
     public byte[] generateSignature(byte[] message) {
         try {
             Signature s = Signature.getInstance("SHA512withRSA");
@@ -28,18 +30,12 @@ public class Encryption {
         }
     }
 
-    /** Checks if signature is valid
-     *
-     * eg.     sample.Encryption e = new sample.Encryption();
-     *         String pk = Base64.getEncoder().encodeToString(e.getRSAPublic().getEncoded());
-     *         System.out.println(pk);
-     *
-     *         byte[] signature = e.generateSignature("hello".getBytes());
-     *         System.out.println("\n\n" + Base64.getEncoder().encodeToString(signature));
-     *         boolean ans = e.verifySignature("hello".getBytes(), signature, pk);
-     *         System.out.println("\n\nvalid: " + ans);
-     *
-     *         */
+    /** Checks if signature is valid (SHA512withRSA)
+     * @param message The message itself
+     * @param signature The signature of the message
+     * @param pubKey The public key of the signature signee
+     * @return Returns whether the signature is valid (true) or not (false)
+     */
     public boolean verifySignature(byte[] message, byte[] signature, String pubKey) {
         try {
 
@@ -59,7 +55,11 @@ public class Encryption {
         }
     }
 
-    /** AES encryption of string message */
+    /** AES encryption of string message (AES256/CBC/PKCS5Padding)
+     * @param message The message that needs to be encrypted
+     * @param key The key with which to encrypt
+     * @return Returns the encrypted text as a byte[]
+     */
     public byte[] aesEncrypt(String message, Key key){
         try {
             Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -73,7 +73,11 @@ public class Encryption {
             return null;
         }
     }
-    /** AES decryption of ciphertext */
+    /** AES decryption of ciphertext (AES256/CBC/PKCS5Padding)
+     * @param ciphertext The encrypted text
+     * @param key The key with which to decrypt
+     * @return Returns the encrypted message as a String
+     */
     public String aesDecrypt(byte[] ciphertext, Key key){
         try {
             Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -87,7 +91,9 @@ public class Encryption {
         }
     }
 
-    /** Randomly creates an AES key */
+    /** Randomly creates an AES key (AES256)
+     * @return Returns the key as a Key object
+     */
     public Key generateAESKey(){
         try {
             KeyGenerator generator = KeyGenerator.getInstance("AES");
@@ -100,7 +106,11 @@ public class Encryption {
         }
     }
 
-    /** RSA encryption of key */
+    /** RSA encryption of key (RSA2048/ECB/PKCS1Padding)
+     *  @param key The key with which to encrypt (recipients public key)
+     *  @param msg The message which is to be encrypted
+     *  @return Returns the encrypted message as a byte[]
+     */
     public byte[] rsaEncrypt(String key, String msg) {
         try{
             byte[] keyBytes = Base64.getDecoder().decode(key.getBytes());
@@ -117,7 +127,10 @@ public class Encryption {
         }
     }
 
-    /** RSA decryption of cipherkey */
+    /** RSA decryption of cipherkey (RSA2048/ECB/PKCS1Padding)
+     * @param ciphertext The message which needs to be encrypted
+     * @return Returns the decrypted message
+     */
     public String rsaDecrypt(byte[] ciphertext) {
         try{
             Key privkey = getRSAPrivate();
@@ -131,7 +144,9 @@ public class Encryption {
         }
     }
 
-    /** Returns users public key */
+    /** Returns users public key
+     * @return Returns the users public key as a Key object
+     */
     public Key getRSAPublic() {
         try {
             File f = new File("publicKey");
@@ -149,7 +164,9 @@ public class Encryption {
         }
     }
 
-    /** Returns users private key */
+    /** Returns users private key
+     * @return Returns the users private key as a Key object
+     */
     private Key getRSAPrivate() {
         try {
             File f = new File("privateKey");

@@ -2,13 +2,9 @@ package sample;
 
 import net.tomp2p.peers.PeerAddress;
 import org.apache.commons.lang3.SerializationUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.iq80.leveldb.*;
-import org.jetbrains.annotations.NotNull;
-
 import static org.iq80.leveldb.impl.Iq80DBFactory.*;
 import java.io.*;
-import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -19,10 +15,10 @@ public class Blockchain {
     private int fileNum = 0;
 
     private long currentIndex = 0;                  // current chain index
-    private String currentHash = "GENESIS";                 // current chain top block hash
+    private String currentHash = "GENESIS";         // current chain top block hash
     private long currentDifficultyTotal = 0;        // current chain difficulty
 
-    private sample.indexBlock chainTip = null;     // header of current chain tip
+    private sample.indexBlock chainTip = null;      // header of current chain tip
 
     private LinkedList<sample.unofficial> unofficial = new LinkedList<sample.unofficial>();
     private ArrayList<String> request = new ArrayList<String>();
@@ -38,6 +34,7 @@ public class Blockchain {
      *
      *                      */
 
+    /** Queries the current chaintip and saves it as a variable */
     public Blockchain() {
         if(chainTip == null) {
             byte[] ct = read(getIndexDB(), "chaintip".getBytes());
@@ -51,6 +48,11 @@ public class Blockchain {
         System.out.println("current chaintip: " + currentHash);
     }
 
+    /** Stores a key:value pair inside a specified database
+     * @param database The database we want to use
+     * @param key The key of the object as a byte[]
+     * @param value The value of the object as a byte[]
+     */
     public void add(DB database, byte[] key, byte[] value) {
         try {
             database.put(key, value);
@@ -59,15 +61,23 @@ public class Blockchain {
         }
     }
 
-    // return asString(database.get(key));
+    /** Returns the value inside a specified database using its key as a byte[]
+     * @param database The database we want to use
+     * @param key The key of the object as a byte[]
+     * @return Returns the value of the object associated with that key */
     public byte[] read(DB database, byte[] key) {
         try {
             return database.get(key);
+            // return asString(database.get(key)) -> returns val as a String representation
         } finally {
             finish(database);
         }
     }
 
+    /** Removes the key:value pair inside a specified database
+     * @param database The database we want to use
+     * @param key The key of the object as a byte[]
+     */
     public void remove(DB database, byte[] key) {
         try {
             WriteOptions wo = new WriteOptions();
@@ -77,6 +87,9 @@ public class Blockchain {
         }
     }
 
+    /** Closes the specified database (necessary for multithreading)
+     * @param database The database we want to use
+     */
     public void finish(DB database) {
         try {
             database.close();
@@ -85,35 +98,11 @@ public class Blockchain {
         }
     }
 
-    public void getAll() {
-        DB bdb = getBlockDB();
-        DBIterator iterator = bdb.iterator();
-        try {
-            for(iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
-                String key = asString(iterator.peekNext().getKey());
-
-                sample.Block block = (sample.Block) SerializationUtils.deserialize(iterator.peekNext().getValue());
-                String value = block.toString();
-
-                System.out.println(key+" = "+value);
-            }
-
-            System.out.println("chaintip: " + getChainTip().toString());
-        }
-        catch(Exception e) {
-            System.out.println("GET ALL ERROR: " + e);
-        }
-        finally {
-            // Make sure you close the iterator to avoid resource leaks.
-            try {
-                iterator.close();
-                finish(bdb);
-            } catch(Exception e) {
-                System.out.println("CLOSING ITERATOR ERROR: " + e);
-            }
-        }
-    }
-
+    /** Returns the messages directed for a specific user from the currently active chain
+     * @param user The name of the user you are conversing with
+     * @param pubKey The public key of the user you are conversing with
+     * @return Returns the messages and their state inside the chain as a single object
+     */
     public sample.MessagesList getMessages(String user, String pubKey) {
         System.out.println("getting messages for user:" + user);
 
@@ -124,12 +113,15 @@ public class Blockchain {
         String ch = currentHash;
 
         while(!ch.equals("GENESIS")) {
+            // read current block
             byte[] contents = read(getBlockDB(), ch.getBytes());
             sample.Block b = (sample.Block)SerializationUtils.deserialize(contents);
             System.out.println("got block with hash: " + ch);
+
+            // loop over its contents
             for(sample.Message m : b.getMessages()) {
                 if(m.getReceiver().equals(pubKey) || m.getSender().equals(pubKey) || m.getReceiver().equals(myPubKey) || m.getSender().equals(myPubKey)) {
-                    System.out.println("adding msg");
+                    // if list is empty no need to check for duplicates
                     if (list.isEmpty()) {
                         list.addFirst(m);
                         if(count > 15) {
@@ -138,16 +130,20 @@ public class Blockchain {
                         else {
                             colours.addFirst("BLUE");
                         }
-                    } else {
+                    }
+
+                    // check for duplicates -> if they exist, remove and add at the start again
+                    else {
                         boolean toAdd = true;
-                        for (sample.Message m2 : list) {
-                            if (m2.getMessage().equals(m.getMessage())) {
-                                toAdd = false;
+                        for (int x=0;x<list.size();x++) {
+                            if (list.get(x).getMessage().equals(m.getMessage())) {
+                                list.remove(x);
+                                colours.remove(x);
+                                break;
                             }
                         }
 
                         if(toAdd) {
-                            System.out.println("new, so we add..");
                             list.addFirst(m);
                             if(count > 15) {
                                 colours.addFirst("GREEN");
@@ -159,31 +155,26 @@ public class Blockchain {
                     }
                 }
             }
+
+            // get child block and increase count
             ch = b.getPreviousHash();
             count++;
         }
 
+        // return both linkedlists inside a new object
         sample.MessagesList ml = new sample.MessagesList(list, colours);
-
-//        if(ch.equals("GENESIS")) {
-//            byte[] contents = read(getBlockDB(), ch.getBytes());
-//            b = (sample.Block)SerializationUtils.deserialize(contents);
-//            System.out.println("got block with hash: " + ch);
-//            for(sample.Message m : b.getMessages()) {
-//                if(m.getReceiver().equals(pubKey) || m.getSender().equals(pubKey) || m.getReceiver().equals(myPubKey) || m.getSender().equals(myPubKey)) {
-//                    list.addFirst(m);
-//                }
-//            }
-//        }
-        System.out.println("-----------------------------MESSAGES-----------------------------");
-        System.out.println(list);
         return ml;
     }
 
-    public LinkedList<String> getChats(String user) {
-        System.out.println("getting messages for user:" + user);
+    /** Get active conversations of the current user
+     * @param user Name of the user
+     * @return Returns the public keys of the user that we communicated with, and the latest message in that conversation inside a new object
+     */
+    public sample.ConversationsList getChats(String user) {
+        System.out.println("getting open conversations for user:" + user);
 
         LinkedList<String> list = new LinkedList<>();
+        LinkedList<sample.Message> messages = new LinkedList<>();
 
         String ch = currentHash;
 
@@ -191,47 +182,77 @@ public class Blockchain {
             byte[] contents = read(getBlockDB(), ch.getBytes());
             sample.Block b = (sample.Block)SerializationUtils.deserialize(contents);
             System.out.println("got block with hash: " + ch);
-            for(sample.Message m : b.getMessages()) {
+
+            // Sort messages by date
+            LinkedList<sample.Message> blockMessages = new LinkedList<>(b.getMessages());
+            blockMessages.sort(Comparator.comparing(sample.Message::getDate).reversed());
+
+            // loop over block contents
+            for(sample.Message m : blockMessages) {
+                // if message was directed to me..
                 if(m.getReceiver().equals(myPubKey)) {
-                    System.out.println("adding msg");
+                    // list is empty so no need to check for duplicates
                     if (list.isEmpty()) {
                         list.add(m.getSender());
-                    } else {
+                        messages.add(m);
+                    }
+
+                    // check for duplicates -> if they exist, do not add again
+                    else {
                         boolean toAdd = true;
                         for (String m2 : list) {
                             if (m2.equals(m.getSender())) {
                                 toAdd = false;
                             }
                         }
+                        if(toAdd) {
+                            list.add(m.getSender());
+                            messages.add(m);
+                        }
                     }
                 }
+
+                // if I sent the message..
                 else if(m.getSender().equals(myPubKey)) {
-                    System.out.println("adding msg");
+                    // list is empty so no need to check for duplicates
                     if (list.isEmpty()) {
                         list.add(m.getReceiver());
-                    } else {
+                        messages.add(m);
+                    }
+
+                    // check for duplicates -> if they exist, no need to add again
+                    else {
                         boolean toAdd = true;
                         for (String m2 : list) {
                             if (m2.equals(m.getReceiver())) {
                                 toAdd = false;
                             }
                         }
+                        if(toAdd) {
+                            list.add(m.getReceiver());
+                            messages.add(m);
+                        }
                     }
                 }
             }
+            // get child block
             ch = b.getPreviousHash();
         }
 
-        System.out.println("-----------------------------CHATTING WITH-----------------------------");
-        System.out.println(list);
-        return list;
+        // combine the two linkedlists inside a new object and return it
+        sample.ConversationsList cl = new sample.ConversationsList(list, messages);
+        return cl;
     }
 
-    /** Saves block inside block DB */
+    /** Saves block inside block DB
+     * @param hash The hash of the block we want to store
+     * @param block The block object we want to store
+     */
     public void storeBlock(String hash, sample.Block block) {
         // TODO - atomicity -> either all changes made or none..
         System.out.println("storing block: " + hash);
         try {
+
             // Adds block to blockDB if it's not already there
             if( read(getBlockDB(), hash.getBytes()) == null) {
                 System.out.println("we don't already have this block..");
@@ -251,26 +272,28 @@ public class Blockchain {
                 byte[] bytesHeader = SerializationUtils.serialize(blockHeader);
                 add(getIndexDB(), ("b" + hash).getBytes(), bytesHeader);
                 System.out.println("header added to indexDB");
+
                 // Check if this block is a new chain tip/head
                 // TODO (check if we already have a block in indexFile with higher difficulty - should be unlikely, but..)
                 System.out.println("checking chaintip");
                 if(getChainTip() == null) {
-                    System.out.println("chaintip set..");
+                    System.out.println("chaintip is null, so set it..");
                     setChainTip(blockHeader);
                     setCurrentDifficultyTotal(blockHeader.getTotalDifficulty());
                     setCurrentHash(hash);
                     setCurrentIndex(blockHeader.getIndex());
                 }
                 else if(getChainTip().getTotalDifficulty() < blockHeader.getTotalDifficulty()) {
-                    System.out.println("---------------------updating chaintip...");
+                    System.out.println("updating chaintip...");
                     setChainTip(blockHeader);
                     setCurrentDifficultyTotal(blockHeader.getTotalDifficulty());
                     setCurrentHash(hash);
                     setCurrentIndex(blockHeader.getIndex());
+                    System.out.println("new chaintip set");
                 }
                 System.out.println("chaintip checked..");
-
                 System.out.println("checking fileheader data");
+
                 // Updates fileheader info in indexDB (if relevant)
                 if (read(getIndexDB(), ("fblocks" + fileNum).getBytes()) == null) {
                     indexFile fileHeader = new indexFile(1, block.getIndex(), block.getIndex(), block.getTotalDifficulty(), block.getTotalDifficulty(), block.getDate(), block.getDate());
@@ -294,18 +317,21 @@ public class Blockchain {
 
                     Date newDate = sdf.parse(block.getDate());
 
+                    // check if we need to update index value
                     if (lowIndex > block.getIndex()) {
                         lowIndex = block.getIndex();
                     } else if (highIndex < block.getIndex()) {
                         highIndex = block.getIndex();
                     }
 
+                    // check if we need to update the TotalDifficulty value
                     if (lowWork > block.getTotalDifficulty()) {
                         lowWork = block.getTotalDifficulty();
                     } else if (highWork < block.getTotalDifficulty()) {
                         highWork = block.getTotalDifficulty();
                     }
 
+                    // check if we need to update the date value
                     if (oldEarly.after(newDate)) {
                         earlyDate = block.getDate();
                     } else if (oldLate.before(newDate)) {
@@ -335,9 +361,12 @@ public class Blockchain {
 
     }
 
-    /** Add blockchain to LevelDB if it's one of the blocks requested */
+    /** Add blockchain to LevelDB if it's one of the blocks requested
+     * @param blocks The LinkedList of blocks we want to add
+     * @return Returns whether the syncing was fully complete (true), or, whether some requested blocks were not received (false)
+     */
     public boolean syncBlocks(LinkedList<sample.Block> blocks) {
-        System.out.println("\n\nSyncing blocks..");
+        System.out.println("Syncing blocks..");
 
         sample.Mining mine = new sample.Mining();
 
@@ -345,11 +374,20 @@ public class Blockchain {
             String h = mine.hash(b);
             System.out.println("block hash: " + h);
             if(getRequest().contains(h)) {
-                System.out.println("we requested this block so start storing it..");
-                storeBlock(h, b);
-                System.out.println("finished storing it..");
-                getRequest().remove(h);
-                System.out.println("removing it from request list");
+                // check if merkle tree is valid..
+                String calcMerkle = sample.Main.mining.genMerkleRoot(b.getMessages());
+
+                if(calcMerkle.equals(b.getMerkleRoot())) {
+                    System.out.println("we requested this block so start storing it..");
+                    storeBlock(h, b);
+                    System.out.println("finished storing it..");
+                    getRequest().remove(h);
+                    System.out.println("removing it from request list");
+                }
+                else {
+                    System.out.println("merkle root not correct..");
+                    // TODO: Reject whole chain? Or maybe just error in transmission, so just ask for it again..
+                }
             }
             else {
                 System.out.println("not in requested list..");
@@ -362,20 +400,25 @@ public class Blockchain {
             return false;
         }
 
+        // All is good..
         else {
             System.out.println("all fine and finished, return true..");
             return true;
         }
     }
 
-    /** Check if the list of headers is valid */
+    /** Check if the list of headers is valid
+     * @param headerList The LinkedList of block headers we want to validate
+     * @return Returns whether the validation was successful or not..
+     */
     public boolean validateHeaders(LinkedList<sample.indexBlock> headerList) {
         System.out.println("validating headers..");
         boolean valid = false;
-        // check mined, check chain is linked, check difficulty levels)
+
         sample.Mining mine = new sample.Mining();
 
         for (sample.indexBlock header : headerList) {
+
             int index = headerList.indexOf(header);
             if(index != 0) {
                 index = index - 1;
@@ -389,6 +432,7 @@ public class Blockchain {
                 System.out.println("request cleared..");
                 return false;
             }
+
             System.out.println("checking linked..");
             // Check if chain is linked
             if( !(validateInChain(header, mine.hash(headerList.get(index)) )) ) {
@@ -398,14 +442,14 @@ public class Blockchain {
                 return false;
             }
 
+            // Check if difficulty is correct
             int index2 = 0;
-            // Check difficulty is correct
             if(index-1 > 0 ) {
                 index2 = index-1;
             }
 
             if( !(validateDifficulty(header, headerList.get(index), headerList.get(index2))) ) {
-                System.out.println("not correct difficulty..");
+                System.out.println("difficulty is not correct..");
                 request.clear();
                 System.out.println("request cleared..");
                 return false;
@@ -421,13 +465,16 @@ public class Blockchain {
         return valid;
     }
 
-    /** Check if prevHash value of block is in users LevelDB */
-    public boolean validateInChain(sample.Block b) {
-        String pHash = b.getPreviousHash();
+    /** Check if prevHash value of block is in users LevelDB
+     * @param block The block object we want to validate
+     * @return Returns whether the validation is successful (true) or not (false)
+     */
+    public boolean validateInChain(sample.Block block) {
+        String pHash = block.getPreviousHash();
 
         sample.Block pBlock = getBlock(pHash);
 
-        if (pHash.equals("GENESIS") && b.getIndex() == 0) {
+        if (pHash.equals("GENESIS") && block.getIndex() == 1) {
             return true;
         }
 
@@ -440,7 +487,11 @@ public class Blockchain {
         }
     }
 
-    /** Check if prevHash value of block is in users LevelDB */
+    /** Check if prevHash value of block is in users LevelDB
+     * @param header The header object of the block we want to validate
+     * @param inChain The hash of the prevHash value the header should have
+     * @return Returns whether the validation was successful (true) or not (false)
+     */
     public boolean validateInChain(sample.indexBlock header, String inChain) {
         System.out.println("validating if in chain..");
         String pHash = header.getPrevHash();
@@ -463,28 +514,38 @@ public class Blockchain {
         }
     }
 
-    /** Check that the difficulty levels in block are valid, ie. totalDifficulty count is correct, and individual difficultyLevel matches current consensus level */
+    /** Check that the difficulty levels in block are valid, ie. totalDifficulty count is correct, and individual difficultyLevel matches current consensus level
+     * @param b The block object we want to validate
+     * @return Returns whether the validation was successful (true) or not (false)
+     */
     public boolean validateDifficulty(sample.Block b) {
         boolean valid = false;
 
         try {
+            // We need at least 3 blocks to calculate the difference in block creation between the child and the grandchild of the block
             if( !b.getPreviousHash().equals("GENESIS") && (b.getIndex() >= 3) ) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
+                // Get the child block and its date
                 byte[] res = read(getIndexDB(), ("b"+b.getPreviousHash()).getBytes());
                 indexBlock prevBlock = (indexBlock) SerializationUtils.deserialize(res);
                 Date parent = sdf.parse(prevBlock.getDate());
 
+                // Get the grandchild block and its date
                 byte[] res2 = read(getIndexDB(), ("b"+prevBlock.getPrevHash()).getBytes());
                 indexBlock prevBlock2 = (indexBlock) SerializationUtils.deserialize(res2);
                 Date child = sdf.parse(prevBlock2.getDate());
 
+                // Calculate the difference in block creation between blocks to the nearest second
                 long diffSeconds = (parent.getTime() - child.getTime()) / 1000 % 60;
-                System.out.println("------------------------------------difference in seconds between blocks: " + diffSeconds);
+                System.out.println("difference in seconds between blocks: " + diffSeconds);
 
-                if (diffSeconds < 20) {
+                // Difficulty needs to be increased..
+                if (diffSeconds <= 20) {
                     long val = prevBlock.getDifficultyLevel() * 2;
                     System.out.println("dif should be: " + val);
+
+                    // Check whether the value matches
                     if(b.getDifficultyLevel() == val) {
                         System.out.println("difficulty is correct");
                         if(b.getTotalDifficulty() == (prevBlock.getTotalDifficulty() + b.getDifficultyLevel())) {
@@ -500,9 +561,19 @@ public class Blockchain {
                         System.out.println("dif not right..");
                         return false;
                     }
-                } else if (diffSeconds > 20) {
+                }
+
+                // Difficulty needs to be lowered..
+                else if (diffSeconds > 20) {
                     long val = prevBlock.getDifficultyLevel() / 2;
                     System.out.println("dif should be: " + val);
+
+                    // Minimum difficulty should be 1
+                    if(val < 1) {
+                        val = 1;
+                    }
+
+                    // Check whether the value matches
                     if(b.getDifficultyLevel() == val) {
                         System.out.println("difficulty is correct");
                         if(b.getTotalDifficulty() == (prevBlock.getTotalDifficulty() + b.getDifficultyLevel())) {
@@ -520,6 +591,8 @@ public class Blockchain {
                     }
                 }
             }
+
+            // Difficulty at the first few blocks should be at 1, so check if this is the case
             else {
                 if(b.getDifficultyLevel() == 1) {
                     System.out.println("dif is 1..");
@@ -538,7 +611,12 @@ public class Blockchain {
         return valid;
     }
 
-    /** Check that the difficulty levels in block header are valid, ie. totalDifficulty count is correct, and individual difficultyLevel matches current consensus level */
+    /** Check that the difficulty levels in block headers are valid, ie. totalDifficulty count is correct, and individual difficultyLevel matches current consensus level
+     * @param h The header we are doing validation on
+     * @param h2 The child header
+     * @param h3 the grandchild header
+     * @return Returns whether the validation was successful (true) or not (false)
+     */
     public boolean validateDifficulty(sample.indexBlock h, sample.indexBlock h2, sample.indexBlock h3) {
         boolean valid = false;
 
@@ -546,17 +624,21 @@ public class Blockchain {
             if( !h.getPrevHash().equals("GENESIS") && (h.getIndex() >= 3) ) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
+                // Get the date of the child header
                 Date parent = sdf.parse(h2.getDate());
-
+                // Get the date of the grandchild header
                 Date child = sdf.parse(h3.getDate());
 
+                // Calculate difference between their creation to the nearest second
                 long diffSeconds = (parent.getTime() - child.getTime()) / 1000 % 60;
-                System.out.println("------------------------------------difference in seconds between blocks: " + diffSeconds);
+                System.out.println("difference in seconds between blocks: " + diffSeconds);
 
-                if (diffSeconds < 20) {
+                // Difficulty should be increased..
+                if (diffSeconds <= 20) {
                     System.out.println("difficulty is increased..");
                     long val = h2.getDifficultyLevel() * 2;
                     System.out.println("dif should be: " + val);
+
                     if(h.getDifficultyLevel() == val) {
                         System.out.println("difficulty is correct");
                         if(h.getTotalDifficulty() == (h2.getTotalDifficulty() + h.getDifficultyLevel())) {
@@ -572,10 +654,20 @@ public class Blockchain {
                         System.out.println("dif not right..");
                         return false;
                     }
-                } else if (diffSeconds > 20) {
+                }
+
+                // Difficulty should be lowered..
+                else if (diffSeconds > 20) {
                     System.out.println("difficulty is decreased..");
                     long val = h2.getDifficultyLevel() / 2;
+
+                    // Minimum difficulty should be 1
+                    if(val < 1) {
+                        val = 1;
+                    }
+
                     System.out.println("dif should be: " + val);
+
                     if(h.getDifficultyLevel() == val) {
                         System.out.println("difficulty is correct");
                         if(h.getTotalDifficulty() == (h2.getTotalDifficulty() + h.getDifficultyLevel())) {
@@ -593,6 +685,8 @@ public class Blockchain {
                     }
                 }
             }
+
+            // Difficulty at the first few blocks should be at 1, so check if this is the case
             else {
                 if(h.getDifficultyLevel() == 1) {
                     System.out.println("dif is 1..");
@@ -611,24 +705,37 @@ public class Blockchain {
         return valid;
     }
 
+    /** Calculate the difficulty level the next block should be at
+     * @return The difficulty level the next block should be at
+     */
     public long getDifficulty() {
         long val = 1;
         try {
             if(chainTip != null) {
                 if(!chainTip.getPrevHash().equals("GENESIS")) {
+
+                    // Get chaintip date
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
                     Date parent = sdf.parse(chainTip.getDate());
+
+                    // Get chaintip header
                     byte[] res = read(getIndexDB(), ("b"+chainTip.getPrevHash()).getBytes());
                     indexBlock prevBlock = (indexBlock) SerializationUtils.deserialize(res);
+
+                    // Get chaintip child date
                     Date child = sdf.parse(prevBlock.getDate());
 
+                    // Calculate difference in block creation to the nearest second
                     long diffSeconds = (parent.getTime() - child.getTime()) / 1000 % 60;
-                    System.out.println("------------------------------------difference in seconds between blocks: " + diffSeconds);
+                    System.out.println("difference in seconds between blocks: " + diffSeconds);
 
+                    // Difficulty should be increased..
                     if (diffSeconds < 20) {
                         System.out.println("difficulty is increased..");
                         val = chainTip.getDifficultyLevel() * 2;
-                    } else if (diffSeconds > 20) {
+                    }
+                    // Difficulty should be lowered..
+                    else if (diffSeconds > 20) {
                         System.out.println("difficulty is decreased..");
                         val = chainTip.getDifficultyLevel() / 2;
                     }
@@ -638,20 +745,38 @@ public class Blockchain {
         catch(Exception e) {
             System.out.println("get difficulty err: " + e);
         }
+
+        // min difficulty should be 1
+        if(val < 1) {
+            val = 1;
+        }
+
         return val;
     }
 
+    /** Store the block we will validate later
+     * @param b The block we want to store
+     * @param pa The address of the peer we received this block from
+     */
     public void addUnofficial(sample.Block b, PeerAddress pa) {
         sample.unofficial uo = new sample.unofficial(b, pa);
         unofficial.addFirst(uo);
     }
 
+    /** Validate and store the unofficial blocks we received from the peer
+     * @param pa The address of the peer
+     */
     public void checkUnofficial(PeerAddress pa) {
         try {
+            // loop over all blocks
             for (sample.unofficial ub : unofficial) {
+                // check if we received the block from this peer
                 if (ub.getPeer().equals(pa)) {
+                    // check if block is in chain
                     if (validateInChain(ub.getBlock())) {
+                        // check if the difficulty levels of the block are valid
                         if(validateDifficulty(ub.getBlock())) {
+                            // all valid, so store and remove from list
                             storeBlock(new sample.Mining().hash(ub.getBlock()), ub.getBlock());
                             unofficial.remove(ub);
                         }
@@ -670,7 +795,9 @@ public class Blockchain {
     }
 
     /** Query current chaintip of the user and go back the chain for 30 blocks and return that blocks hash
-     *  see ->     https://stackoverflow.com/questions/49065176/how-many-confirmations-should-i-have-on-ethereum */
+     *  see ->     https://stackoverflow.com/questions/49065176/how-many-confirmations-should-i-have-on-ethereum
+     *  @return Returns the hash of the latest confirmed block
+     */
     public String getConfirmed() {
         int count = 1;
         String hash = "GENESIS";
@@ -696,6 +823,10 @@ public class Blockchain {
         return hash;
     }
 
+    /** Get the blocks another peer has requested from us
+     * @param hashes The ArrayList of String hashes the user requests
+     * @return Returns the full blocks inside a LinkedList
+     */
     public LinkedList<sample.Block> getRequestedBlocks(ArrayList<String> hashes) {
         System.out.println("\n\ngetting requested blocks..");
         System.out.println("blocks wanted: " + hashes);
@@ -715,15 +846,19 @@ public class Blockchain {
         return blockList;
     }
 
+    /** Get the headers of the blocks another peer has requested from us
+     * @param h The hash from which the other peer wants to build upon
+     * @return Returns the LinkedList of headers the peer has requested
+     */
     public LinkedList<sample.indexBlock> getHeaders(String h) {
         System.out.println("Getting chain headers..");
         LinkedList<sample.indexBlock> headerList = new LinkedList<>();
-        //sample.Mining mine = new sample.Mining();
 
         // add chainTip
         sample.indexBlock header = getChainTip();
         headerList.addFirst(header);
         System.out.println("added chaintip header..");
+
         // check if we need to go further down the chain
         while( !(header.getPrevHash().equals(h)) ) {
             String prevHash = header.getPrevHash();
@@ -737,7 +872,10 @@ public class Blockchain {
         return headerList;
     }
 
-    /** Retrieves block from block DB */
+    /** Retrieves block from block DB
+     * @param keyHash The hash of the block we want to read as a String
+     * @return Returns the block object we have requested (or null if such object doesn't exist)
+     */
     public sample.Block getBlock(String keyHash) {
         try {
             byte[] contents = read(getBlockDB(), keyHash.getBytes());
@@ -751,7 +889,9 @@ public class Blockchain {
         }
     }
 
-    /** Create/Open LevelDB that stores block - creates new DB every ~2 weeks */
+    /** Create/Open LevelDB that stores block - creates new DB every ~2 weeks
+     * @return Returns the blockDB database
+     */
     public DB getBlockDB() {
 
 //        try {
@@ -774,6 +914,9 @@ public class Blockchain {
         }
     }
 
+    /** Create/Open LevelDB that stores block headers
+     * @return Returns the indexDB database
+     */
     public DB getIndexDB() {
         try {
             options.createIfMissing(true);
@@ -785,13 +928,16 @@ public class Blockchain {
         }
     }
 
+    /** Gets the current index number of the file
+     * @return Returns the index of the file */
     public int getFileNum() {
         return fileNum;
     }
 
     /** Returns number of files in directory (NOTE: not actually accurate in terms of counting levelDB entries)
-     *
      *  READ: https://stackoverflow.com/questions/39715607/by-java-how-to-count-file-numbers-in-a-directory-without-list
+     * @param name The name of the database eg. blockDB, indexDB
+     * @return Returns the number of entries in the database
      * */
     private int checkFileLength(String name) {
 
@@ -812,7 +958,8 @@ public class Blockchain {
         }
     }
 
-    /** Returns chain tip */
+    /** Returns chain tip
+     * @return Returns the chaintip*/
     public sample.indexBlock getChainTip() {
         return chainTip;
     }
@@ -822,35 +969,41 @@ public class Blockchain {
         this.chainTip = newTip;
     }
 
+    /** Gets current index of the chaintip */
     public long getCurrentIndex() {
         return currentIndex;
     }
 
+    /** Sets the current index of the chaintip */
     public void setCurrentIndex(long currentIndex) {
         this.currentIndex = currentIndex;
     }
 
+    /** Gets the hash of the chaintip */
     public String getCurrentHash() {
         return currentHash;
     }
 
+    /** Sets the hash of the chaintip */
     public void setCurrentHash(String currentHash) {
         this.currentHash = currentHash;
     }
 
+    /** Gets the current difficulty total of the chaintip */
     public long getCurrentDifficultyTotal() {
         return currentDifficultyTotal;
     }
 
-    public void setCurrentDifficultyTotal(long currentDifficultyTotal) {
-        this.currentDifficultyTotal = currentDifficultyTotal;
-    }
+    /** Sets the current difficulty level of the chaintip */
+    public void setCurrentDifficultyTotal(long currentDifficultyTotal) { this.currentDifficultyTotal = currentDifficultyTotal; }
 
+    /** Returns the request blocks inside an ArrayList of Strings */
     public ArrayList<String> getRequest() {
         return request;
     }
 }
 
+/** The header of the file object */
 class indexFile implements Serializable {
     public int numBlocks;
     public long lowIndex;
@@ -912,6 +1065,7 @@ class indexFile implements Serializable {
     }
 }
 
+/** The header of the block */
 class indexBlock implements Serializable {
     public long index;
     public long difficultyLevel;
@@ -976,6 +1130,7 @@ class indexBlock implements Serializable {
     }
 }
 
+/** The blocks and from whom they were received from */
 class unofficial {
     private final sample.Block block;
     private final PeerAddress peer;
@@ -994,6 +1149,7 @@ class unofficial {
     }
 }
 
+/** The messages and their state */
 class MessagesList {
     private LinkedList<sample.Message> ml;
     private LinkedList<String> cl;
@@ -1009,5 +1165,24 @@ class MessagesList {
 
     public LinkedList<String> getColoursList() {
         return cl;
+    }
+}
+
+/** The active conversations and the latest message */
+class ConversationsList {
+    private LinkedList<String> contacts;
+    private LinkedList<sample.Message> messages;
+
+    public ConversationsList(LinkedList<String> c, LinkedList<sample.Message> m) {
+        this.contacts = new LinkedList<>(c);
+        this.messages = new LinkedList<>(m);
+    }
+
+    public LinkedList<sample.Message> getMessagesList() {
+        return messages;
+    }
+
+    public LinkedList<String> getUsersList() {
+        return contacts;
     }
 }

@@ -3,11 +3,8 @@ package sample;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
-import javafx.scene.text.Text;
-
 import java.io.PrintWriter;
 import java.util.TreeSet;
-
 import static sample.Main.mining;
 import static sample.Main.network;
 
@@ -16,9 +13,11 @@ public class BlockchainController {
     @FXML
     private Button mineButton;
 
+    /** Setups the blockchain screen */
     public void initialize() {
         System.out.println("blockchain opened..");
 
+        // When 'mine' button is pressed, start mining process
         mineButton.setOnAction( (e) -> {
             Platform.runLater(() -> {
                 System.out.println("mining..");
@@ -27,7 +26,7 @@ public class BlockchainController {
                 mineButton.setDisable(true);
                 mining.fetchMessages(network.getMessagesFile());
 
-                new Thread(() -> {
+                Platform.runLater(() -> {
                     sample.Block block = mining.createBlock(network.getChain());
                     sample.Block minedBlock = mining.mineBlock(block);
                     try {
@@ -39,7 +38,7 @@ public class BlockchainController {
                     System.out.println("msgs in mine button: " + minedBlock.getMessages().size());
                     network.getChain().storeBlock(mining.hash(minedBlock), minedBlock);
                     network.announce(minedBlock);
-                }).start();
+                });
 
                 mineButton.setText("Mine");
                 mineButton.setDisable(false);
